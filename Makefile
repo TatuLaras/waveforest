@@ -1,9 +1,11 @@
 NAME = waveforest
 CC = gcc
-PACKAGES = -lm
+PACKAGES = $(shell pkg-config --libs jack) -lm
 INCLUDE = -Iinclude -Iexternal/include
 SANITIZE = -fsanitize=address
-CFLAGS = $(PACKAGES) $(INCLUDE) -Wall -Wextra -Wshadow -pedantic -Wstrict-prototypes -march=native
+ADDITIONAL_CFLAGS =
+CFLAGS = $(PACKAGES) $(INCLUDE) -Wall -Wextra -Wshadow -pedantic -Wstrict-prototypes -march=native $(ADDITIONAL_CFLAGS)
+CFLAGS_STANDALONE = $(CFLAGS) $(shell pkg-config --libs raylib)
 CFLAGS_SHARED = $(CFLAGS) -fpic
 CFLAGS_DEBUG = $(CFLAGS) -DDEBUG -ggdb
 CFLAGS_ASAN = $(CFLAGS_DEBUG) $(SANITIZE)
@@ -19,21 +21,21 @@ standalone_debug: $(BUILD_DIR)/standalone_debug
 
 ARGS=
 
-run: $(BUILD_DIR)/standalone
+run: $(BUILD_DIR)/standalone_debug
 	@echo "WARNING: no address sanitation enabled, consider running with 'make run_asan' when developing."
-	$(BUILD_DIR)/standalone $(ARGS)
+	$(BUILD_DIR)/standalone_debug $(ARGS)
 
 run_asan: $(BUILD_DIR)/standalone_asan
 	$(BUILD_DIR)/standalone_asan $(ARGS)
 
-STANDALONE_SRC = $(SRC) $(wildcard $(SRC_DIR)/standalone/*.c)
+STANDALONE_SRC = $(SRC) $(wildcard $(SRC_DIR)/standalone/*.c) $(wildcard $(SRC_DIR)/gui/*.c)
 
 $(BUILD_DIR)/standalone: $(STANDALONE_SRC) 
-	$(CC) $(CFLAGS) $^ -o $@
+	$(CC) $(CFLAGS_STANDALONE) $^ -o $@
 $(BUILD_DIR)/standalone_asan: $(STANDALONE_SRC) 
-	$(CC) $(CFLAGS_ASAN) $^ -o $@
+	$(CC) $(CFLAGS_STANDALONE) $(SANITIZE) -ggdb $^ -o $@
 $(BUILD_DIR)/standalone_debug: $(STANDALONE_SRC) 
-	$(CC) $(CFLAGS_DEBUG) $^ -o $@
+	$(CC) $(CFLAGS_STANDALONE) -ggdb $^ -o $@
 
 # LV2 plugin build
 .PHONY: lv2

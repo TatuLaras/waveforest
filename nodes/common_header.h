@@ -4,11 +4,11 @@
 #include "common_node_types.h"
 
 void *node_instantiate(NodeInstanceHandle handle,
-                       RegisterPortFunction register_port);
+                       RegisterInputPortFunction register_input,
+                       RegisterOutputPortFunction register_output);
 void *node_free(NodeInstanceHandle handle);
 
-void node_process(float **input_buffers, float **output_buffers,
-                  uint32_t buffer_size, uint32_t input_buffers_count,
-                  uint32_t output_buffers_count, void *arg);
+void node_process(void *arg, Info *info, float **input_buffers,
+                  float **output_buffers, uint32_t frame_count);
 
 #endif

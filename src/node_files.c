@@ -1,4 +1,5 @@
 #include "node_files.h"
+#include "log.h"
 
 #include <assert.h>
 #include <dirent.h>
@@ -7,6 +8,7 @@
 #include <string.h>
 
 #define FUNCTION_NAME_INSTANTIATE "node_instantiate"
+#define FUNCTION_NAME_PROCESS "node_process"
 
 static char node_directory[PATH_MAX] = {0};
 
@@ -48,10 +50,8 @@ static inline void *get_symbol(void *handle, const char *name) {
 
     char *error = dlerror();
     if (error) {
-        fprintf(stderr, "ERROR: Error fetching shared object symbol '%s': %s\n",
-                name, error);
-        fprintf(stderr, "HINT: Have you implemented all functions in "
-                        "nodes/common_header.h?\n");
+        ERROR("cannot fetch shared object symbol '%s'", name);
+        HINT("Have you implemented all functions in nodes/common_header.h?");
         return 0;
     }
     return symbol_func;
@@ -77,8 +77,7 @@ int node_files_load(char *node_name, Node *out_node) {
 
     void *handle = dlopen(path, RTLD_NOW);
     if (!handle) {
-        fprintf(stderr, "ERROR: Cannot open node file for node '%s': %s\n",
-                node_name, dlerror());
+        ERROR("cannot open shared object file %s", dlerror());
         return 1;
     }
     dlerror();
@@ -86,9 +85,11 @@ int node_files_load(char *node_name, Node *out_node) {
     // Get symbols from shared object
     node.functions.instantiate =
         (NodeInstantiateFunction)get_symbol(handle, FUNCTION_NAME_INSTANTIATE);
+    node.functions.process =
+        (NodeProcessFunction)get_symbol(handle, FUNCTION_NAME_PROCESS);
 
-    if (!node.functions.instantiate) {
-        fprintf(stderr, "ERROR: Could not load node '%s'.\n", node_name);
+    if (!node.functions.instantiate || !node.functions.process) {
+        ERROR("Could not load node '%s' symbols", node_name);
         return 1;
     }
 
@@ -105,6 +106,4 @@ void node_files_set_directory(const char *directory) {
     } else {
         node_directory[length] = 0;
     }
-
-    printf("%s\n", node_directory);
 }
