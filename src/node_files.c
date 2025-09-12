@@ -1,5 +1,5 @@
 #include "node_files.h"
-#include "log.h"
+#include "common.h"
 
 #include <assert.h>
 #include <dirent.h>
@@ -10,7 +10,7 @@
 #define FUNCTION_NAME_INSTANTIATE "node_instantiate"
 #define FUNCTION_NAME_PROCESS "node_process"
 
-static char node_directory[PATH_MAX] = {0};
+static char node_directory[PATH_MAX + 2] = {0};
 
 static inline int has_suffix(const char *string, const char *suffix) {
     size_t string_len = strlen(string);
@@ -98,7 +98,7 @@ int node_files_load(char *node_name, Node *out_node) {
 }
 
 void node_files_set_directory(const char *directory) {
-    strncpy(node_directory, directory, PATH_MAX - 1);
+    strncpy(node_directory, directory, PATH_MAX);
     uint64_t length = strlen(node_directory);
     if (node_directory[length - 1] != '/') {
         node_directory[length] = '/';

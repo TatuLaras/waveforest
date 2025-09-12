@@ -37,7 +37,7 @@ typedef PortHandle (*RegisterOutputPortFunction)(NodeInstanceHandle handle,
 typedef enum : uint8_t {
     MIDI_NOTE_ON,
     MIDI_NOTE_OFF,
-    MIDI_CLEAR,
+    MIDI_ALL_NOTES_OFF,
 } MidiEventType;
 
 typedef struct {
@@ -51,8 +51,13 @@ typedef struct {
 
 typedef struct {
     float sample_rate;
-    MidiEvent *midi_events;
-    uint32_t midi_event_count;
+    uint64_t coarse_time;
+    struct {
+        uint8_t is_on;
+        uint8_t note;
+        uint8_t velocity;
+        float frequency;
+    } note;
 } Info;
 
 #endif

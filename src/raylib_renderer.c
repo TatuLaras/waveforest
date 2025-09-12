@@ -1,7 +1,6 @@
 // Adapted from
 // https://github.com/nicbarker/clay/blob/main/renderers/raylib/clay_renderer_raylib.c
 #include "clay.h"
-#include "vec.h"
 
 #include <raylib.h>
 #include <raymath.h>
@@ -34,15 +33,11 @@ typedef struct {
     } customData;
 } CustomLayoutElement;
 
-VEC_DECLARE(Font, FontVec, fontvec)
-VEC_IMPLEMENT(Font, FontVec, fontvec)
-
 static Camera raylib_camera = {0};
 // A MALLOC'd buffer, that we keep modifying inorder to save from so many Malloc
 // and Free Calls. Call Clay_Raylib_Close() to free
 static char *temp_render_buffer = NULL;
 static int temp_render_buffer_len = 0;
-static FontVec fonts = {0};
 
 // Get a ray trace from the screen position (i.e mouse) within a specific
 // section of the screen
@@ -147,13 +142,9 @@ Clay_Dimensions uirend_measure_text(Clay_StringSlice text,
 
 void uirend_init(void) {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+    SetTraceLogLevel(LOG_WARNING);
     InitWindow(800, 600, "waveforest");
-    fonts = fontvec_init();
     //    EnableEventWaiting();
-}
-
-uint32_t uirend_load_font(const char *filepath) {
-    return fontvec_append(&fonts, LoadFont(filepath));
 }
 
 // Call after closing the window to clean up the render buffer
@@ -185,7 +176,6 @@ float uirend_get_mousewheel(void) {
 }
 
 void uirend_render(Clay_RenderCommandArray renderCommands, Font *fonts) {
-    BeginDrawing();
     for (int j = 0; j < renderCommands.length; j++) {
         Clay_RenderCommand *renderCommand =
             Clay_RenderCommandArray_Get(&renderCommands, j);
@@ -400,6 +390,4 @@ void uirend_render(Clay_RenderCommandArray renderCommands, Font *fonts) {
         }
         }
     }
-
-    EndDrawing();
 }

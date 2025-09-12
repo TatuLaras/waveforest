@@ -1,10 +1,16 @@
 #include "node_manager.h"
-#include "log.h"
+#include "common.h"
+#include "midi.h"
 
 #include <assert.h>
 #include <dlfcn.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
+
+#define DB_CO(g) ((g) > -90.0f ? powf(10.0f, (g) * 0.05f) : 0.0f)
+#define HARD_CLIP_LIMIT DB_CO(17)
+#define MASTER_GAIN DB_CO(-16)
 
 VEC_IMPLEMENT(NodeInstance, NodeInstanceVec, nodeinstancevec)
 VEC_IMPLEMENT(Node, NodeVec, nodevec)
@@ -28,8 +34,9 @@ static Info info = {.sample_rate = 48000};
 static FloatPVec temp_input_buffer_table = {0};
 static FloatPVec temp_output_buffer_table = {0};
 static BufferVec temp_constant_buffers = {0};
-static MidiEventVec midi_events = {0};
 
+// Called from within a node plugin file to register a new input port for the
+// node.
 static PortHandle register_input(NodeInstanceHandle handle, InputPort port) {
 
     NodeInstance *node_instance = nodeinstancevec_get(&node_instances, handle);
@@ -38,10 +45,13 @@ static PortHandle register_input(NodeInstanceHandle handle, InputPort port) {
         exit(1);
     }
 
-    port.manual.value = port.manual.default_value;
+    port.manual.value =
+        clamp(port.manual.default_value, port.manual.min, port.manual.max);
     return inputportvec_append(&node_instance->inputs, port);
 }
 
+// Called from within a node plugin file to register a new output port for the
+// node.
 static PortHandle register_output(NodeInstanceHandle handle, char *name) {
 
     NodeInstance *node_instance = nodeinstancevec_get(&node_instances, handle);
@@ -59,6 +69,13 @@ static PortHandle register_output(NodeInstanceHandle handle, char *name) {
     return port_handle;
 }
 
+void node_init(void) {
+    node_instances = nodeinstancevec_init();
+    // So that value zero can be used as a null value
+    nodeinstancevec_append(&node_instances,
+                           (NodeInstance){.positioning = {2, 2}});
+}
+
 NodeHandle node_new(Node node) {
 
     if (!nodes.data)
@@ -67,10 +84,13 @@ NodeHandle node_new(Node node) {
     return nodevec_append(&nodes, node);
 }
 
-int node_exists(const char *name) {
+int node_get_by_name(const char *name, NodeHandle *out_handle) {
     for (size_t i = 0; i < nodes.data_used; i++) {
-        if (!strncmp(nodes.data[i].name, name, MAX_NAME))
+        if (!strncmp(nodes.data[i].name, name, MAX_NAME)) {
+            if (out_handle)
+                *out_handle = i;
             return 1;
+        }
     }
     return 0;
 }
@@ -83,17 +103,9 @@ NodeInstanceHandle node_instantiate(NodeHandle node_handle) {
         return 0;
     }
 
-    NodeInstance instance = {
-        .inputs = inputportvec_init(),
-        .outputs = outputportvec_init(),
-        .node = node_handle,
-    };
-
-    if (!node_instances.data) {
-        node_instances = nodeinstancevec_init();
-        // So that value zero can be used as a null value
-        nodeinstancevec_append(&node_instances, (NodeInstance){0});
-    }
+    NodeInstance instance = {.inputs = inputportvec_init(),
+                             .outputs = outputportvec_init(),
+                             .node = node_handle};
 
     NodeInstanceHandle instance_handle =
         nodeinstancevec_append(&node_instances, instance);
@@ -111,6 +123,11 @@ void node_connect(NodeInstanceHandle output_instance,
                   NodeInstanceHandle input_instance,
                   InputPortHandle input_port) {
 
+    if (input_instance == INSTANCE_HANDLE_OUTPUT_PORT) {
+        node_connect_to_output(output_instance, output_port);
+        return;
+    }
+
     NodeInstance *out = nodeinstancevec_get(&node_instances, output_instance);
     NodeInstance *in = nodeinstancevec_get(&node_instances, input_instance);
 
@@ -122,12 +139,28 @@ void node_connect(NodeInstanceHandle output_instance,
     InputPort *in_port = inputportvec_get(&in->inputs, input_port);
 
     if (output_port >= out->outputs.data_used || !in_port) {
-        ERROR("invalid port handle");
+        ERROR("invalid port handle %u %u", input_instance, input_port);
         return;
     }
 
     in_port->connection.output_instance = output_instance;
     in_port->connection.output_port = output_port;
+}
+
+void node_disconnect(NodeInstanceHandle instance, InputPortHandle port) {
+    if (instance == INSTANCE_HANDLE_OUTPUT_PORT) {
+        network_output_port = (InputPort){0};
+        return;
+    }
+
+    InputPortVec inputs = node_get_inputs(instance);
+    if (port > inputs.data_used) {
+        ERROR("invalid port or node instance handle");
+        return;
+    }
+
+    inputs.data[port].connection.output_instance = 0;
+    inputs.data[port].connection.output_port = 0;
 }
 
 int node_connect_to_output(NodeInstanceHandle instance,
@@ -145,6 +178,17 @@ int node_connect_to_output(NodeInstanceHandle instance,
 
     network_output_port.connection.output_instance = instance;
     network_output_port.connection.output_port = output_port;
+    return 0;
+}
+
+int node_get_outputting_node_instance(NodeInstanceHandle *out_handle,
+                                      OutputPortHandle *out_port) {
+    if (!network_output_port.connection.output_instance)
+        return 1;
+    if (out_handle)
+        *out_handle = network_output_port.connection.output_instance;
+    if (out_port)
+        *out_port = network_output_port.connection.output_port;
     return 0;
 }
 
@@ -210,6 +254,7 @@ OutputPortVec node_get_outputs(NodeInstanceHandle instance) {
     return node_instance->outputs;
 }
 
+// Makes sure the `buffer` has at least `target_capacity` floats of space.
 static inline void prepare_buffer(Buffer *buffer, uint64_t target_capacity) {
 
     uint64_t target_bytes = target_capacity * sizeof(float);
@@ -237,6 +282,8 @@ static int process_node(uint32_t frame_count, NodeInstanceHandle instance) {
     Node *node = nodes.data + node_instance->node;
 
     // Make sure dependency/input nodes are all processed before this one
+    //  TODO: Non-recursive approach to improve performance and prevent the risk
+    //  of stack overflow on large node networks
     for (uint32_t i = 0; i < node_instance->inputs.data_used; i++) {
         NodeInstanceHandle dependency_instance =
             node_instance->inputs.data[i].connection.output_instance;
@@ -254,6 +301,8 @@ static int process_node(uint32_t frame_count, NodeInstanceHandle instance) {
 
         // If an input port is not connected to anything a constant value will
         // be used
+        //  TODO: A way to have a constant value without having to fill a hole
+        //  buffer with it
         if (!input_port->connection.output_instance) {
             if (constant_buffer_i >= temp_constant_buffers.data_used)
                 buffervec_append(&temp_constant_buffers, (Buffer){0});
@@ -299,13 +348,6 @@ void node_consume_network(uint32_t frame_count, float *out_frames) {
         temp_output_buffer_table = floatpvec_init();
     if (!temp_constant_buffers.data)
         temp_constant_buffers = buffervec_init();
-    if (!midi_events.data)
-        midi_events = midieventvec_init();
-
-    info.midi_events = midi_events.data;
-    info.midi_event_count = midi_events.data_used;
-
-    staleness_counter++;
 
     NodeInstance *output_instance = nodeinstancevec_get(
         &node_instances, network_output_port.connection.output_instance);
@@ -314,22 +356,50 @@ void node_consume_network(uint32_t frame_count, float *out_frames) {
 
     if (network_output_port.connection.output_port >=
         output_instance->outputs.data_used) {
+#ifdef DEBUG
         ERROR("out of range port handle");
-        exit(1);
+        HINT("Is there a node connected to the output port?");
+#endif
+        // Prevents harsh repetition of previous samples if output is
+        // disconnected while playing a note.
+        memset(out_frames, 0, frame_count * sizeof(float));
         return;
     }
 
-    int error = process_node(frame_count,
-                             network_output_port.connection.output_instance);
-    if (error)
-        return;
+    float buffer[frame_count];
+    memset(buffer, 0, frame_count * sizeof(float));
 
-    float *buffer = output_instance->outputs
-                        .data[network_output_port.connection.output_port]
-                        .buffer.data;
-    memcpy(out_frames, buffer, frame_count * sizeof(float));
+    for (uint32_t note_i = 0; note_i < MIDI_NOTES; note_i++) {
 
-    midi_events.data_used = 0;
+        if (!midi_note_on[note_i])
+            continue;
+
+        info.note.note = note_i;
+        info.note.is_on = 1;
+        staleness_counter++;
+        int error = process_node(
+            frame_count, network_output_port.connection.output_instance);
+        if (error)
+            return;
+        float *data = output_instance->outputs
+                          .data[network_output_port.connection.output_port]
+                          .buffer.data;
+        for (uint32_t i = 0; i < frame_count; i++) {
+            buffer[i] += data[i];
+        }
+    }
+
+    for (uint32_t i = 0; i < frame_count; i++) {
+        float amplitude = buffer[i];
+        amplitude *= MASTER_GAIN;
+
+        float mag = fabsf(amplitude);
+        if (mag > HARD_CLIP_LIMIT)
+            amplitude *= HARD_CLIP_LIMIT / mag;
+        out_frames[i] = amplitude;
+    }
+
+    info.coarse_time += frame_count;
 }
 
 void node_free(Node *node) {
@@ -344,26 +414,6 @@ void node_free(Node *node) {
 void node_set_sample_rate(float sample_rate) {
     INFO("new sample rate %f", sample_rate);
     info.sample_rate = sample_rate;
-}
-
-void node_register_midi_event(MidiEvent event) {
-    midieventvec_append(&midi_events, event);
-}
-
-void node_set_default_value(NodeInstanceHandle instance, InputPortHandle port,
-                            float value) {
-    NodeInstance *node_instance =
-        nodeinstancevec_get(&node_instances, instance);
-    if (!node_instance) {
-        ERROR("invalid node instance handle");
-        return;
-    }
-    if (port >= node_instance->inputs.data_used) {
-        ERROR("out of range port handle");
-        return;
-    }
-
-    node_instance->inputs.data[port].manual.value = value;
 }
 
 NodeInstance *node_instance_get(NodeInstanceHandle instance) {

@@ -33,9 +33,9 @@ STANDALONE_SRC = $(SRC) $(wildcard $(SRC_DIR)/standalone/*.c) $(wildcard $(SRC_D
 $(BUILD_DIR)/standalone: $(STANDALONE_SRC) 
 	$(CC) $(CFLAGS_STANDALONE) $^ -o $@
 $(BUILD_DIR)/standalone_asan: $(STANDALONE_SRC) 
-	$(CC) $(CFLAGS_STANDALONE) $(SANITIZE) -ggdb $^ -o $@
+	$(CC) $(CFLAGS_STANDALONE) $(SANITIZE) -ggdb -DDEBUG $^ -o $@
 $(BUILD_DIR)/standalone_debug: $(STANDALONE_SRC) 
-	$(CC) $(CFLAGS_STANDALONE) -ggdb $^ -o $@
+	$(CC) $(CFLAGS_STANDALONE) -ggdb -DDEBUG $^ -o $@
 
 # LV2 plugin build
 .PHONY: lv2

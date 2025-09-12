@@ -12,8 +12,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "core.h"
-
 #define WAVEFOREST_URI "http://www.laras.cc/plugins/waveforest"
 
 typedef enum {

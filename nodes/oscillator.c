@@ -1,12 +1,12 @@
 #include "common_header.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct {
     uint8_t use_exact_frequency;
-    double time;
-    uint8_t note_on[MIDI_NOTE_COUNT];
 } State;
 
 // Can be shared across instances because registered port handles are always
@@ -22,28 +22,23 @@ void *node_instantiate(NodeInstanceHandle handle,
                        RegisterOutputPortFunction register_output) {
 
     out = (*register_output)(handle, "output");
-    in_frequency =
-        (*register_input)(handle, (InputPort){.name = "frequency",
-                                              .manual = {
-                                                  .default_value = 1.0,
-                                                  .min = 0,
-                                                  .max = 20,
-                                              }});
-    in_phase = (*register_input)(handle, (InputPort){.name = "phase",
-                                                     .manual = {
-                                                         .default_value = 0.0,
-                                                         .min = 0,
-                                                         .max = 8,
-                                                     }});
-    in_volume = (*register_input)(handle, (InputPort){.name = "volume",
-                                                      .manual = {
-                                                          .default_value = 1,
-                                                          .min = 0,
-                                                          .max = 4,
-                                                      }});
 
-    for (uint32_t i = 0; i < 128; i++)
-        note_frequencies[i] = 440 * pow(2, (i - 69) / 12.0);
+    in_frequency = (*register_input)(
+        handle,
+        (InputPort){.name = "frequency",
+                    .manual = {.default_value = 1, .min = 0, .max = 20}});
+    in_phase = (*register_input)(
+        handle,
+        (InputPort){.name = "phase",
+                    .manual = {.default_value = 0, .min = 0, .max = 8}});
+    in_volume = (*register_input)(
+        handle,
+        (InputPort){.name = "volume",
+                    .manual = {.default_value = 1, .min = 0, .max = 4}});
+
+    for (uint32_t i = 0; i < 128; i++) {
+        note_frequencies[i] = 440 * pow(2, (i - 69.0) / 12.0);
+    }
 
     return calloc(1, sizeof(State));
 }
@@ -53,42 +48,34 @@ void node_process(void *arg, Info *info, float **input_buffers,
 
     State *state = (State *)arg;
 
-    uint32_t midi_event_i = 0;
-
     for (uint32_t i = 0; i < frame_count; i++) {
+        double time =
+            (double)(info->coarse_time + i) / (double)info->sample_rate;
 
-        if (midi_event_i < info->midi_event_count &&
-            info->midi_events[midi_event_i].time == i) {
-
-            MidiEvent *event = info->midi_events + midi_event_i;
-
-            if (event->type == MIDI_NOTE_ON) {
-                state->note_on[event->note] = 1;
-                // printf("NOTEON %u\n", event->note);
-            } else if (event->type == MIDI_NOTE_OFF)
-                state->note_on[event->note] = 0;
-
-            midi_event_i++;
-        }
-
-        state->time += 1.0 / (double)info->sample_rate;
-
-        // memset(output_buffers[out], 0, frame_count * sizeof(float));
+        // if (info->note.is_on)
         output_buffers[out][i] =
-            sin(state->time * M_PI * 2 * 220 * input_buffers[in_frequency][i] +
+            sin(time * M_PI * 2 * note_frequencies[info->note.note] *
+                    input_buffers[in_frequency][i] +
                 input_buffers[in_phase][i]) *
             input_buffers[in_volume][i];
-
+        // else
+        //     output_buffers[out][i] = 0;
+        //
+        // float value = 0;
         // for (uint32_t note_i = 0; note_i < MIDI_NOTE_COUNT; note_i++) {
         //
-        //     if (!state->note_on[note_i])
+        //     if (!info->midi_note_on[note_i])
         //         continue;
         //
-        //     output_buffers[out][i] += sin(state->time * M_PI * 2 * 220 *
-        //                                       input_buffers[in_frequency][i]
-        //                                       +
-        //                                   input_buffers[in_phase][i]) *
-        //                               input_buffers[in_volume][i];
+        //     value += sin(state->time * M_PI * 2 * note_frequencies[note_i] *
+        //                      input_buffers[in_frequency][i] +
+        //                  input_buffers[in_phase][i]) *
+        //              input_buffers[in_volume][i];
         // }
+        // output_buffers[out][i] = value;
+        // if (on_note_count)
+        //     output_buffers[out][i] = value / on_note_count;
+        // else
+        //     output_buffers[out][i] = 0;
     }
 }

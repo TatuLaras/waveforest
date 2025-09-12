@@ -1,7 +1,8 @@
-#include "log.h"
+#include "common.h"
+#include "midi.h"
 #include "node_manager.h"
 #include <inttypes.h>
-#include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
 #include <jack/jack.h>
@@ -16,37 +17,28 @@ static int process(jack_nframes_t nframes, void *arg) {
     jack_default_audio_sample_t *out =
         (jack_default_audio_sample_t *)jack_port_get_buffer(out_audio, nframes);
     jack_midi_event_t in_event;
-    jack_nframes_t event_index = 0;
     jack_nframes_t event_count = jack_midi_get_event_count(port_buf);
 
     jack_midi_event_get(&in_event, port_buf, 0);
-    for (uint32_t i = 0; i < nframes; i++) {
 
-        if ((in_event.time == i) && (event_index < event_count)) {
+    for (uint32_t i = 0; i < event_count; i++) {
+        jack_midi_event_get(&in_event, port_buf, i);
 
-            if (((*(in_event.buffer) & 0xf0)) == 0x90) {
+        //  NOTE: https://midi.org/summary-of-midi-1-0-messages
 
-                node_register_midi_event((MidiEvent){
-                    .type = MIDI_NOTE_ON,
-                    .note = in_event.buffer[1],
-                    .velocity = in_event.buffer[2],
-                });
-            } else if (((*(in_event.buffer)) & 0xf0) == 0x80) {
-
-                node_register_midi_event((MidiEvent){
-                    .type = MIDI_NOTE_OFF,
-                    .note = in_event.buffer[1],
-                });
-            }
-
-            event_index++;
-            if (event_index < event_count)
-                jack_midi_event_get(&in_event, port_buf, event_index);
+        if ((*in_event.buffer & 0xf0) == 0x90) {
+            midi_note_on[in_event.buffer[1]] = 1;
+        } else if ((*in_event.buffer & 0xf0) == 0x80) {
+            midi_note_on[in_event.buffer[1]] = 0;
         }
+        // all notes off:
+        // memset(midi_note_on, 0, MIDI_NOTES);
     }
 
     node_consume_network(nframes, out);
     return 0;
+
+    (void)arg;
 }
 
 static int sample_rate_changed(jack_nframes_t nframes, void *arg) {
@@ -81,8 +73,26 @@ int jack_init(void) {
     // Try to auto-connect to a playback device
     const char **ports = jack_get_ports(client, NULL, NULL,
                                         JackPortIsPhysical | JackPortIsInput);
-    if (ports && jack_connect(client, jack_port_name(out_audio), ports[0]))
-        WARNING("tried to connect to physical output port but couldn't");
+    const char **midi_ports = jack_get_ports(
+        client, NULL, ".*midi.*", JackPortIsOutput | JackPortIsPhysical);
+
+    if (ports && ports[0] &&
+        jack_connect(client, jack_port_name(out_audio), ports[0]))
+        WARNING("tried to connect to physical output port %s but couldn't",
+                ports[0]);
+    if (ports && ports[1] &&
+        jack_connect(client, jack_port_name(out_audio), ports[1]))
+        WARNING("tried to connect to physical output port %s but couldn't",
+                ports[1]);
+
+    if (midi_ports)
+        for (uint32_t i = 0; midi_ports[i]; i++) {
+            if (jack_connect(client, midi_ports[i], jack_port_name(in_midi)))
+                WARNING("could not connect to MIDI port %s", midi_ports[i]);
+        }
+
+    jack_free(ports);
+    jack_free(midi_ports);
 
     return 0;
 }
