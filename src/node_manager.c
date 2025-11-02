@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <dlfcn.h>
 #include <math.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -23,6 +24,9 @@ VEC_IMPLEMENT(Buffer, BufferVec, buffervec)
 VEC_DECLARE(float *, FloatPVec, floatpvec)
 VEC_IMPLEMENT(float *, FloatPVec, floatpvec)
 
+VEC_DECLARE(InputBuffer, InputBufferVec, inputbuffervec)
+VEC_IMPLEMENT(InputBuffer, InputBufferVec, inputbuffervec)
+
 VEC_DECLARE(MidiEvent, MidiEventVec, midieventvec)
 VEC_IMPLEMENT(MidiEvent, MidiEventVec, midieventvec)
 
@@ -30,10 +34,13 @@ static NodeVec nodes = {0};
 static NodeInstanceVec node_instances = {0};
 static uint8_t staleness_counter = 0;
 static InputPort network_output_port = {0};
-static Info info = {.sample_rate = 48000};
-static FloatPVec temp_input_buffer_table = {0};
-static FloatPVec temp_output_buffer_table = {0};
-static BufferVec temp_constant_buffers = {0};
+static Info info = {.sample_rate = 48000, .bpm = 120};
+static InputBufferVec input_buffers = {0};
+static FloatPVec output_buffers = {0};
+
+// Used to lock `nodes` and `node_instances` when appended to in order to
+// prevent use after frees by the audio thread if the vector is resized.
+static pthread_spinlock_t lock;
 
 // Called from within a node plugin file to register a new input port for the
 // node.
@@ -70,18 +77,58 @@ static PortHandle register_output(NodeInstanceHandle handle, char *name) {
 }
 
 void node_init(void) {
+
+    if (pthread_spin_init(&lock, PTHREAD_PROCESS_SHARED)) {
+        ERROR("could not initialize spinlock");
+        exit(1);
+    }
+
     node_instances = nodeinstancevec_init();
     // So that value zero can be used as a null value
     nodeinstancevec_append(&node_instances,
                            (NodeInstance){.positioning = {2, 2}});
+    nodes = nodevec_init();
+}
+
+void node_reset(void) {
+
+    for (uint32_t i = 1; i < node_instances.data_used; i++) {
+        NodeInstance *node_instance = node_instance_get(i);
+        if (!node_instance)
+            continue;
+        Node *node = node_get(node_instance->node);
+        if (!node)
+            continue;
+
+        if (node->functions.free)
+            node->functions.free(node_instance->arg);
+
+        for (uint32_t j = 0; j < node_instance->outputs.data_used; j++) {
+            Buffer buf = node_instance->outputs.data[j].buffer;
+            if (buf.data)
+                free(buf.data);
+        }
+        outputportvec_free(&node_instance->outputs);
+        inputportvec_free(&node_instance->inputs);
+    }
+
+    for (uint32_t i = 0; i < nodes.data_used; i++) {
+        Node *node = node_get(i);
+        if (node)
+            node_free(node);
+    }
+
+    node_instances.data_used = 1;
+    nodes.data_used = 0;
 }
 
 NodeHandle node_new(Node node) {
 
-    if (!nodes.data)
-        nodes = nodevec_init();
+    pthread_spin_lock(&lock);
+    int result = nodevec_append(&nodes, node);
+    pthread_spin_unlock(&lock);
 
-    return nodevec_append(&nodes, node);
+    return result;
 }
 
 int node_get_by_name(const char *name, NodeHandle *out_handle) {
@@ -95,6 +142,16 @@ int node_get_by_name(const char *name, NodeHandle *out_handle) {
     return 0;
 }
 
+static uint8_t calculate_node_height(uint64_t port_count) {
+
+    uint8_t height = 1;
+
+    if (port_count >= 4) {
+        height = 2 + (port_count - 4) / 5;
+    }
+    return height;
+}
+
 NodeInstanceHandle node_instantiate(NodeHandle node_handle) {
 
     Node *node = nodevec_get(&nodes, node_handle);
@@ -105,17 +162,52 @@ NodeInstanceHandle node_instantiate(NodeHandle node_handle) {
 
     NodeInstance instance = {.inputs = inputportvec_init(),
                              .outputs = outputportvec_init(),
-                             .node = node_handle};
+                             .node = node_handle,
+                             .height = 1};
+
+    pthread_spin_lock(&lock);
 
     NodeInstanceHandle instance_handle =
         nodeinstancevec_append(&node_instances, instance);
+
     NodeInstance *appended_instance =
         nodeinstancevec_get(&node_instances, instance_handle);
 
     appended_instance->arg = (*node->functions.instantiate)(
-        instance_handle, &register_input, &register_output);
+        instance_handle, &appended_instance->height, &register_input,
+        &register_output);
 
+    pthread_spin_unlock(&lock);
     return instance_handle;
+}
+
+void node_instance_destroy(NodeInstanceHandle instance_handle) {
+
+    if (instance_handle == INSTANCE_HANDLE_OUTPUT_PORT)
+        return;
+
+    NodeInstance *instance = node_instance_get(instance_handle);
+    if (!instance)
+        return;
+
+    for (NodeInstanceHandle i = 0; i < node_instances.data_used; i++) {
+
+        NodeInstance *connected_instance = node_instances.data + i;
+        for (InputPortHandle j = 0; j < connected_instance->inputs.data_used;
+             j++) {
+
+            InputPort *port = connected_instance->inputs.data + j;
+            if (port->connection.output_instance != instance_handle)
+                continue;
+
+            port->connection.output_instance = 0;
+            port->connection.output_port = 0;
+        }
+    }
+
+    instance->is_deleted = 1;
+    instance->inputs.data_used = 0;
+    instance->outputs.data_used = 0;
 }
 
 void node_connect(NodeInstanceHandle output_instance,
@@ -148,6 +240,7 @@ void node_connect(NodeInstanceHandle output_instance,
 }
 
 void node_disconnect(NodeInstanceHandle instance, InputPortHandle port) {
+
     if (instance == INSTANCE_HANDLE_OUTPUT_PORT) {
         network_output_port = (InputPort){0};
         return;
@@ -165,6 +258,7 @@ void node_disconnect(NodeInstanceHandle instance, InputPortHandle port) {
 
 int node_connect_to_output(NodeInstanceHandle instance,
                            OutputPortHandle output_port) {
+
     NodeInstance *out = nodeinstancevec_get(&node_instances, instance);
     if (!out) {
         ERROR("invalid node handle");
@@ -183,6 +277,7 @@ int node_connect_to_output(NodeInstanceHandle instance,
 
 int node_get_outputting_node_instance(NodeInstanceHandle *out_handle,
                                       OutputPortHandle *out_port) {
+
     if (!network_output_port.connection.output_instance)
         return 1;
     if (out_handle)
@@ -203,8 +298,8 @@ InputPortVec node_get_inputs(NodeInstanceHandle instance) {
     return node_instance->inputs;
 }
 
-int node_get_output_handle(NodeInstanceHandle instance, const char *name,
-                           OutputPortHandle *out_handle) {
+int node_get_output(NodeInstanceHandle instance, const char *name,
+                    OutputPortHandle *out_handle) {
 
     NodeInstance *node_instance =
         nodeinstancevec_get(&node_instances, instance);
@@ -223,8 +318,8 @@ int node_get_output_handle(NodeInstanceHandle instance, const char *name,
     return 1;
 }
 
-int node_get_input_handle(NodeInstanceHandle instance, const char *name,
-                          InputPortHandle *out_handle) {
+int node_get_input(NodeInstanceHandle instance, const char *name,
+                   InputPortHandle *out_handle) {
 
     NodeInstance *node_instance =
         nodeinstancevec_get(&node_instances, instance);
@@ -273,6 +368,8 @@ static inline void prepare_buffer(Buffer *buffer, uint64_t target_capacity) {
     buffer->data_allocated = target_capacity;
 }
 
+// Processes a single node, aka. prepares all its buffers and calls the nodes
+// process function.
 static int process_node(uint32_t frame_count, NodeInstanceHandle instance) {
 
     NodeInstance *node_instance = node_instances.data + instance;
@@ -291,30 +388,17 @@ static int process_node(uint32_t frame_count, NodeInstanceHandle instance) {
             process_node(frame_count, dependency_instance);
     }
 
-    temp_output_buffer_table.data_used = 0;
-    temp_input_buffer_table.data_used = 0;
-    uint32_t constant_buffer_i = 0;
+    output_buffers.data_used = 0;
+    input_buffers.data_used = 0;
 
     // Prepare inputs
     for (uint32_t i = 0; i < node_instance->inputs.data_used; i++) {
         InputPort *input_port = node_instance->inputs.data + i;
 
-        // If an input port is not connected to anything a constant value will
-        // be used
-        //  TODO: A way to have a constant value without having to fill a hole
-        //  buffer with it
         if (!input_port->connection.output_instance) {
-            if (constant_buffer_i >= temp_constant_buffers.data_used)
-                buffervec_append(&temp_constant_buffers, (Buffer){0});
-
-            Buffer *buffer = temp_constant_buffers.data + constant_buffer_i;
-            prepare_buffer(buffer, frame_count);
-
-            for (uint32_t j = 0; j < frame_count; j++)
-                buffer->data[j] = input_port->manual.value;
-
-            floatpvec_append(&temp_input_buffer_table, buffer->data);
-            constant_buffer_i++;
+            inputbuffervec_append(
+                &input_buffers,
+                (InputBuffer){.value = input_port->manual.value});
             continue;
         }
 
@@ -323,45 +407,46 @@ static int process_node(uint32_t frame_count, NodeInstanceHandle instance) {
         Buffer *buffer =
             &output_instance->outputs.data[input_port->connection.output_port]
                  .buffer;
-        floatpvec_append(&temp_input_buffer_table, buffer->data);
+        inputbuffervec_append(&input_buffers,
+                              (InputBuffer){.data = buffer->data});
     }
 
     // Prepare outputs
     for (uint32_t i = 0; i < node_instance->outputs.data_used; i++) {
         Buffer *buffer = &node_instance->outputs.data[i].buffer;
         prepare_buffer(buffer, frame_count);
-        floatpvec_append(&temp_output_buffer_table, buffer->data);
+        floatpvec_append(&output_buffers, buffer->data);
     }
 
-    (*node->functions.process)(node_instance->arg, &info,
-                               temp_input_buffer_table.data,
-                               temp_output_buffer_table.data, frame_count);
+    (*node->functions.process)(node_instance->arg, &info, input_buffers.data,
+                               output_buffers.data, frame_count);
     node_instance->staleness = staleness_counter;
 
     return 0;
 }
 
 void node_consume_network(uint32_t frame_count, float *out_frames) {
-    if (!temp_input_buffer_table.data)
-        temp_input_buffer_table = floatpvec_init();
-    if (!temp_output_buffer_table.data)
-        temp_output_buffer_table = floatpvec_init();
-    if (!temp_constant_buffers.data)
-        temp_constant_buffers = buffervec_init();
+
+    if (!input_buffers.data)
+        input_buffers = inputbuffervec_init();
+    if (!output_buffers.data)
+        output_buffers = floatpvec_init();
+
+    pthread_spin_lock(&lock);
 
     NodeInstance *output_instance = nodeinstancevec_get(
         &node_instances, network_output_port.connection.output_instance);
-    if (!output_instance)
+    if (!output_instance) {
+        pthread_spin_unlock(&lock);
         return;
+    }
 
     if (network_output_port.connection.output_port >=
         output_instance->outputs.data_used) {
-#ifdef DEBUG
-        ERROR("out of range port handle");
-        HINT("Is there a node connected to the output port?");
-#endif
+
         // Prevents harsh repetition of previous samples if output is
         // disconnected while playing a note.
+        pthread_spin_unlock(&lock);
         memset(out_frames, 0, frame_count * sizeof(float));
         return;
     }
@@ -370,24 +455,35 @@ void node_consume_network(uint32_t frame_count, float *out_frames) {
     memset(buffer, 0, frame_count * sizeof(float));
 
     for (uint32_t note_i = 0; note_i < MIDI_NOTES; note_i++) {
+        NoteInfo *note_info = midi_get_note_info(note_i);
 
-        if (!midi_note_on[note_i])
+        if (!note_info)
+            continue;
+        double time_since_release =
+            (info.coarse_time + frame_count - note_info->release_time) /
+            info.sample_rate;
+        if (!note_info->is_on && (time_since_release > MAX_RELEASE_TIME ||
+                                  note_info->release_time == 0))
             continue;
 
-        info.note.note = note_i;
-        info.note.is_on = 1;
+        info.note = note_info;
+
         staleness_counter++;
-        int error = process_node(
-            frame_count, network_output_port.connection.output_instance);
-        if (error)
+        if (process_node(frame_count,
+                         network_output_port.connection.output_instance)) {
+            pthread_spin_unlock(&lock);
             return;
+        }
+
         float *data = output_instance->outputs
                           .data[network_output_port.connection.output_port]
                           .buffer.data;
-        for (uint32_t i = 0; i < frame_count; i++) {
+
+        for (uint32_t i = 0; i < frame_count; i++)
             buffer[i] += data[i];
-        }
     }
+
+    pthread_spin_unlock(&lock);
 
     for (uint32_t i = 0; i < frame_count; i++) {
         float amplitude = buffer[i];
@@ -402,6 +498,10 @@ void node_consume_network(uint32_t frame_count, float *out_frames) {
     info.coarse_time += frame_count;
 }
 
+uint64_t node_get_coarse_time(void) {
+    return info.coarse_time;
+}
+
 void node_free(Node *node) {
 
     if (node->dl_handle) {
@@ -412,14 +512,39 @@ void node_free(Node *node) {
 }
 
 void node_set_sample_rate(float sample_rate) {
+
     INFO("new sample rate %f", sample_rate);
     info.sample_rate = sample_rate;
 }
 
 NodeInstance *node_instance_get(NodeInstanceHandle instance) {
+
     return nodeinstancevec_get(&node_instances, instance);
 }
 
 Node *node_get(NodeHandle node) {
+
     return nodevec_get(&nodes, node);
+}
+
+void node_set_manual_value(NodeInstanceHandle instance, InputPortHandle port,
+                           float value) {
+
+    InputPortVec inputs = node_get_inputs(instance);
+    if (port >= inputs.data_used)
+        return;
+
+    inputs.data[port].manual.value = value;
+}
+
+uint32_t node_instance_count(void) {
+    return node_instances.data_used;
+}
+
+void node_instance_set_positioning(NodeInstanceHandle instance,
+                                   NodePositioning positioning) {
+    NodeInstance *node_instance = node_instance_get(instance);
+    if (!node_instance)
+        return;
+    node_instance->positioning = positioning;
 }

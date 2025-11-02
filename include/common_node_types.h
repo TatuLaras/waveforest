@@ -5,9 +5,14 @@
 #ifndef _COMMON_NODE_TYPES
 #define _COMMON_NODE_TYPES
 
+#include "string_vector.h"
 #include <stdint.h>
 
 #define MAX_NAME 128
+
+// Nodes will for a MIDI key be processed for this amount of time after the MIDI
+// key release. This is to allow for stuff like a release envelope fade out.
+#define MAX_RELEASE_TIME 15.0
 
 typedef uint32_t NodeHandle;
 typedef uint32_t NodeInstanceHandle;
@@ -34,6 +39,7 @@ typedef PortHandle (*RegisterInputPortFunction)(NodeInstanceHandle handle,
                                                 InputPort port);
 typedef PortHandle (*RegisterOutputPortFunction)(NodeInstanceHandle handle,
                                                  char *name);
+
 typedef enum : uint8_t {
     MIDI_NOTE_ON,
     MIDI_NOTE_OFF,
@@ -47,17 +53,35 @@ typedef struct {
     uint32_t time;
 } MidiEvent;
 
-#define MIDI_NOTE_COUNT 128
+#define MIDI_NOTES 128
+
+typedef struct {
+    uint8_t is_on;
+    uint8_t number;
+    uint8_t on_velocity;
+    uint8_t off_velocity;
+    float frequency;
+    uint64_t release_time;
+    uint64_t enable_time;
+} NoteInfo;
 
 typedef struct {
     float sample_rate;
     uint64_t coarse_time;
-    struct {
-        uint8_t is_on;
-        uint8_t note;
-        uint8_t velocity;
-        float frequency;
-    } note;
+    NoteInfo *note;
+    float bpm;
 } Info;
+
+typedef struct {
+    float *data;
+    float value;
+} InputBuffer;
+
+typedef void (*DrawDropdownFunction)(StringVector *options,
+                                     uint16_t *selected_index);
+
+typedef struct {
+    DrawDropdownFunction dropdown;
+} Draw;
 
 #endif

@@ -5,7 +5,7 @@
 #include "string_vector.h"
 
 // Returns a StringVector containing all names of the .so files in
-// `directory`.
+// directory configured by node_files_set_directory().
 StringVector node_files_enumerate(void);
 // Loads a node file (.so) and returns it via `out_node`.
 // Returns non-zero value on error.

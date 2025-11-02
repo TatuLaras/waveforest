@@ -1,4 +1,52 @@
 #include "midi.h"
+#include "node_manager.h"
 
-uint8_t midi_note_on[MIDI_NOTES] = {0};
-const float midi_note_frequencies[MIDI_NOTES] = {0};
+#include <math.h>
+#include <string.h>
+
+static NoteInfo note_data[MIDI_NOTES] = {0};
+static uint8_t is_frequencies_calculated = 0;
+
+static inline void calculate_frequencies(void) {
+
+    for (uint32_t i = 0; i < MIDI_NOTES; i++) {
+        note_data[i].frequency = 440 * pow(2, (i - 69.0) / 12.0);
+        note_data[i].number = i;
+    }
+    is_frequencies_calculated = 1;
+}
+
+void midi_reset(void) {
+
+    memset(note_data, 0, sizeof(note_data));
+}
+
+void midi_set_note_on(uint8_t note, uint8_t velocity, uint32_t time) {
+
+    if (note >= MIDI_NOTES)
+        return;
+    if (!is_frequencies_calculated)
+        calculate_frequencies();
+
+    note_data[note].is_on = 1;
+    note_data[note].on_velocity = velocity;
+    note_data[note].enable_time = time + node_get_coarse_time();
+}
+
+void midi_set_note_off(uint8_t note, uint8_t velocity, uint32_t time) {
+
+    if (note >= MIDI_NOTES)
+        return;
+    if (!is_frequencies_calculated)
+        calculate_frequencies();
+
+    note_data[note].is_on = 0;
+    note_data[note].off_velocity = velocity;
+    note_data[note].release_time = time + node_get_coarse_time();
+}
+
+NoteInfo *midi_get_note_info(uint8_t note) {
+    if (note >= MIDI_NOTES)
+        return 0;
+    return note_data + note;
+}

@@ -8,42 +8,11 @@
 #include <string.h>
 
 #define FUNCTION_NAME_INSTANTIATE "node_instantiate"
+#define FUNCTION_NAME_FREE "node_free"
+#define FUNCTION_NAME_GUI "node_gui"
 #define FUNCTION_NAME_PROCESS "node_process"
 
 static char node_directory[PATH_MAX + 2] = {0};
-
-static inline int has_suffix(const char *string, const char *suffix) {
-    size_t string_len = strlen(string);
-    size_t suffix_len = strlen(suffix);
-    if (string_len < suffix_len) {
-        return 0;
-    }
-    return memcmp(string + (string_len - suffix_len), suffix, suffix_len) == 0;
-}
-
-// Inserts a list of filenames (without extension) of all files in `directory`
-// that end with `suffix` into the StringVector `destination`.
-static inline void get_basenames_with_suffix(const char *directory,
-                                             StringVector *destination,
-                                             const char *suffix) {
-    DIR *d;
-    struct dirent *dir;
-    d = opendir(directory);
-    if (!d) {
-        perror("Could not open directory");
-        return;
-    }
-
-    while ((dir = readdir(d)) != NULL) {
-        if (dir->d_type == DT_REG && has_suffix(dir->d_name, suffix))
-            stringvec_append(destination, dir->d_name,
-                             strlen(dir->d_name) - strlen(suffix));
-    }
-
-    closedir(d);
-
-    return;
-}
 
 static inline void *get_symbol(void *handle, const char *name) {
     void *symbol_func = dlsym(handle, name);
@@ -51,7 +20,6 @@ static inline void *get_symbol(void *handle, const char *name) {
     char *error = dlerror();
     if (error) {
         ERROR("cannot fetch shared object symbol '%s'", name);
-        HINT("Have you implemented all functions in nodes/common_header.h?");
         return 0;
     }
     return symbol_func;
@@ -90,8 +58,14 @@ int node_files_load(char *node_name, Node *out_node) {
 
     if (!node.functions.instantiate || !node.functions.process) {
         ERROR("Could not load node '%s' symbols", node_name);
+        HINT("Have you implemented all the required functions in "
+             "nodes/common_header.h?");
         return 1;
     }
+
+    node.functions.free =
+        (NodeFreeFunction)get_symbol(handle, FUNCTION_NAME_FREE);
+    node.functions.gui = (NodeGuiFunction)get_symbol(handle, FUNCTION_NAME_GUI);
 
     memcpy(out_node, &node, sizeof(Node));
     return 0;

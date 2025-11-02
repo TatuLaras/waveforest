@@ -1,10 +1,13 @@
 #define COLOR_BG_0 {0x21, 0x0d, 0x1f, 0xff}
 #define COLOR_BG_1 {0x49, 0x1d, 0x45, 0xff}
 #define COLOR_BG_2 {0x83, 0x34, 0x7c, 0xff}
+#define COLOR_BG_WARN {0xdc, 0x98, 0x4f, 0xff}
+#define COLOR_BG_WARN_HL {0xff, 0xa8, 0x4a, 0xff}
 #define COLOR_TEXT {0xff, 0xff, 0xff, 0xff}
 #define COLOR_TEXT_MUTED {0xad, 0xd8, 0xe6, 0xff}
 #define COLOR_BG_SOCKET COLOR_BG_0
 #define COLOR_BG_SOCKET_HL {0xff, 0xff, 0xff, 0xff}
+#define COLOR_BG_DROPDOWN {0x31, 0x13, 0x2e, 0xff}
 #define COLOR_SLIDER {0xad, 0x41, 0x72, 0xff}
 #define COLOR_CONNECTION COLOR_SLIDER
 
@@ -17,5 +20,9 @@ extern float scale;
 #define FONT_SIZE S(FONT_SIZE_FIXED)
 #define SOCKET_DIAMETER S(12)
 #define SOCKET_CORNER_RADIUS (SOCKET_DIAMETER / 2.0)
+
+#define GAP(h)                                                                 \
+    CLAY({.layout = {.sizing = {.width = CLAY_SIZING_GROW(0),                  \
+                                .height = CLAY_SIZING_FIXED(h)}}}) {}
 
 #define NODE_WIDTH 3

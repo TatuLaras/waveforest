@@ -5,19 +5,25 @@
 #include <stdlib.h>
 #include <string.h>
 
+typedef enum : uint16_t {
+    MODE_SINE,
+    MODE_TRIANGLE,
+    MODE_SAW,
+    MODE_SQUARE,
+} Mode;
+
 typedef struct {
-    uint8_t use_exact_frequency;
+    StringVector modes;
+    Mode selected_mode;
 } State;
 
-// Can be shared across instances because registered port handles are always
-// deterministic if registered in the same order.
 static OutputPortHandle out;
 static InputPortHandle in_frequency;
 static InputPortHandle in_phase;
 static InputPortHandle in_volume;
-static float note_frequencies[MIDI_NOTE_COUNT] = {0};
 
 void *node_instantiate(NodeInstanceHandle handle,
+                       uint8_t *out_height_in_grid_units,
                        RegisterInputPortFunction register_input,
                        RegisterOutputPortFunction register_output) {
 
@@ -36,46 +42,66 @@ void *node_instantiate(NodeInstanceHandle handle,
         (InputPort){.name = "volume",
                     .manual = {.default_value = 1, .min = 0, .max = 4}});
 
-    for (uint32_t i = 0; i < 128; i++) {
-        note_frequencies[i] = 440 * pow(2, (i - 69.0) / 12.0);
-    }
+    void *arg = malloc(sizeof(State));
 
-    return calloc(1, sizeof(State));
+    State state = {.modes = stringvec_init()};
+    stringvec_append(&state.modes, "sine", strlen("sine"));
+    stringvec_append(&state.modes, "triangle", strlen("triangle"));
+    stringvec_append(&state.modes, "saw", strlen("saw"));
+    stringvec_append(&state.modes, "square", strlen("square"));
+
+    memcpy(arg, &state, sizeof(State));
+
+    *out_height_in_grid_units = 2;
+
+    return arg;
 }
 
-void node_process(void *arg, Info *info, float **input_buffers,
-                  float **output_buffers, uint32_t frame_count) {
+void node_free(void *arg) {
+    State *state = (State *)arg;
+
+    if (state->modes.data)
+        stringvec_free(&state->modes);
+
+    free(arg);
+}
+
+void node_gui(void *arg, Draw draw) {
+    State *state = (State *)arg;
+
+    draw.dropdown(&state->modes, &state->selected_mode);
+}
+
+static inline float wave_function(Mode mode, double x) {
+    switch (mode) {
+    case MODE_SINE:
+        return sin(x * M_PI * 2);
+    case MODE_TRIANGLE:
+        return fabs(fmod(x, 1.0) * 2 - 1) * 2 - 1;
+    case MODE_SAW:
+        return fmod(x, 1.0) * 2 - 1;
+    case MODE_SQUARE:
+        return ((uint64_t)(x * 2) % 2 == 0) * 2 - 1;
+    }
+
+    return 0;
+}
+
+void node_process(void *arg, Info *info, InputBuffer *input_bufs,
+                  float **output_bufs, uint32_t frame_count) {
 
     State *state = (State *)arg;
 
     for (uint32_t i = 0; i < frame_count; i++) {
+
         double time =
             (double)(info->coarse_time + i) / (double)info->sample_rate;
 
-        // if (info->note.is_on)
-        output_buffers[out][i] =
-            sin(time * M_PI * 2 * note_frequencies[info->note.note] *
-                    input_buffers[in_frequency][i] +
-                input_buffers[in_phase][i]) *
-            input_buffers[in_volume][i];
-        // else
-        //     output_buffers[out][i] = 0;
-        //
-        // float value = 0;
-        // for (uint32_t note_i = 0; note_i < MIDI_NOTE_COUNT; note_i++) {
-        //
-        //     if (!info->midi_note_on[note_i])
-        //         continue;
-        //
-        //     value += sin(state->time * M_PI * 2 * note_frequencies[note_i] *
-        //                      input_buffers[in_frequency][i] +
-        //                  input_buffers[in_phase][i]) *
-        //              input_buffers[in_volume][i];
-        // }
-        // output_buffers[out][i] = value;
-        // if (on_note_count)
-        //     output_buffers[out][i] = value / on_note_count;
-        // else
-        //     output_buffers[out][i] = 0;
+        output_bufs[out][i] =
+            wave_function(state->selected_mode,
+                          time * info->note->frequency *
+                                  INPUT_GET_VALUE(input_bufs[in_frequency], i) +
+                              INPUT_GET_VALUE(input_bufs[in_phase], i)) *
+            INPUT_GET_VALUE(input_bufs[in_volume], i);
     }
 }

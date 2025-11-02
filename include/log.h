@@ -1,6 +1,8 @@
 #ifndef _LOG
 #define _LOG
 
+#include <stdio.h>
+
 #ifndef LOG_SRC
 #define LOG_SRC ""
 #endif

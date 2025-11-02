@@ -1,7 +1,9 @@
 #include "common.h"
+#include "gui/fuzzy_picker.h"
 #include "gui/gui.h"
 #include "jack_client.h"
 #include "node_files.h"
+#include "patch_files.h"
 
 #include <assert.h>
 #include <signal.h>
@@ -14,20 +16,29 @@ void cleanup(void) {
     INFO("cleaning up");
     gui_deinit();
     jack_deinit();
+    fuzzy_picker_deinit();
 }
 
+#ifdef LSP_EDITOR
+#define NODE_DIR ""
+#define PATCH_DIR ""
+#endif
+
 int main(int argc, char **argv) {
-    node_files_set_directory("build/nodes/");
+
+    node_files_set_directory(NODE_DIR);
+    patch_set_directory(PATCH_DIR);
 
     signal(SIGQUIT, exit);
     signal(SIGHUP, exit);
     signal(SIGTERM, exit);
     signal(SIGINT, exit);
 
+    node_init();
+
     if (jack_init())
         return 1;
     gui_init();
-    node_init();
 
     atexit(cleanup);
 

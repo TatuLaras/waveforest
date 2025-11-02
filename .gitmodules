@@ -1,3 +1,6 @@
 [submodule "external/waves"]
 	path = external/waves
 	url = http://github.com/TatuLaras/waves
+[submodule "external/submodules/--depth=1"]
+	path = external/submodules/--depth=1
+	url = https://github.com/brummer10/libxputty.git

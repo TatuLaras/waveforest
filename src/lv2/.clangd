@@ -1,3 +1,3 @@
 CompileFlags:
-  Add: [-xc, -I../../external/waves/include, -I../../include, -Wall, -DDEBUG, -Wextra, -Wshadow, -pedantic, -DLSP_EDITOR, -Wno-c23-extensions]
+  Add: [-xc, -I../../external/include, -I../../include, -I../../external/submodules/libxputty/libxputty/include, -I/usr/include/cairo, -Wall, -DDEBUG, -Wextra, -Wshadow, -pedantic, -DLSP_EDITOR, -Wno-c23-extensions, -Wno-unused-parameter]
 

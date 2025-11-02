@@ -3,6 +3,8 @@
 #include "clay.h"
 #include "common.h"
 #include "gui/defines.h"
+#include "gui/dropdown.h"
+#include "gui/gui_common.h"
 
 #include <math.h>
 #include <raylib.h>
@@ -29,29 +31,6 @@ static struct {
     // 0 = input to output , 1 = output to input
     uint8_t start_is_output;
 } port_connecting = {0};
-
-static inline Clay_ElementId unique_id(char *prefix, uint64_t uid) {
-    char id_chars[64] = {0};
-    snprintf(id_chars, 64, "%s%zu", prefix, uid);
-    return Clay_GetElementId((Clay_String){.isStaticallyAllocated = 1,
-                                           .chars = id_chars,
-                                           .length = strlen(id_chars)});
-}
-
-static inline int is_mouse_inside_box(Clay_BoundingBox box,
-                                      float *out_percentage_x,
-                                      float *out_percentage_y) {
-
-    float x_percent = (GetMouseX() - box.x) / box.width;
-
-    if (out_percentage_x)
-        *out_percentage_x = x_percent;
-    if (out_percentage_y)
-        *out_percentage_y = (GetMouseY() - box.y) / box.height;
-
-    return box.y <= GetMouseY() && GetMouseY() - box.y <= box.height &&
-           x_percent <= 1.0 && x_percent >= 0.0;
-}
 
 static inline void handle_port_connecting(int is_output,
                                           NodeInstanceHandle instance,
@@ -169,9 +148,10 @@ static inline int component_port_slider(InputPort *port) {
 
     int is_slider_controlled = slider_id.id == slider_being_controlled_id.id;
     float snap_interval = 1;
-    int is_snap = IsKeyDown(KEY_LEFT_CONTROL);
+    int is_snap =
+        IsKeyDown(KEY_LEFT_CONTROL) || IsMouseButtonDown(MOUSE_BUTTON_SIDE);
     int is_fine_control = 0;
-    if (IsKeyDown(KEY_LEFT_SHIFT)) {
+    if (IsKeyDown(KEY_LEFT_SHIFT) || IsMouseButtonDown(MOUSE_BUTTON_EXTRA)) {
         if (is_snap)
             snap_interval /= 10;
         else
@@ -427,19 +407,12 @@ static inline void component_network_output(Vector2 screen_top_left,
     Clay_ElementId node_id = CLAY_ID("output_node");
     Clay_ElementId node_title_id = CLAY_ID("output_node_title");
 
-    if (!node_instance->height)
-        node_instance->height = 1;
-
     CLAY({
         node_id,
         .layout =
             {
                 .sizing = {.width = CLAY_SIZING_FIXED(GRID_UNIT),
-                           .height =
-                               node_instance->height
-                                   ? CLAY_SIZING_FIXED(node_instance->height *
-                                                       GRID_UNIT)
-                                   : CLAY_SIZING_FIT(0)},
+                           .height = CLAY_SIZING_FIXED(GRID_UNIT)},
                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
                 .padding =
                     CLAY__CONFIG_WRAPPER(Clay_Padding, {0, 0, S(4), S(8)}),
@@ -497,7 +470,7 @@ void component_node(NodeInstanceHandle instance, Vector2 screen_top_left,
         port_positions = portposvec_init();
 
     NodeInstance *node_instance = node_instance_get(instance);
-    if (!node_instance)
+    if (!node_instance || node_instance->is_deleted)
         return;
 
     Node *node = node_get(node_instance->node);
@@ -515,12 +488,6 @@ void component_node(NodeInstanceHandle instance, Vector2 screen_top_left,
 
     Clay_ElementId node_id = unique_id("node", instance);
     Clay_ElementId node_title_id = unique_id("nodetitle", instance);
-
-    if (!node_instance->height) {
-        Clay_ElementData data = Clay_GetElementData(node_id);
-        if (data.found)
-            node_instance->height = ceil(data.boundingBox.height / GRID_UNIT);
-    }
 
     CLAY({
         node_id,
@@ -589,6 +556,14 @@ void component_node(NodeInstanceHandle instance, Vector2 screen_top_left,
                     InputPort *input = inputs.data + i;
                     component_input(input, instance, i);
                 }
+
+                GAP(S(12));
+                // Node's own UI
+                if (node->functions.gui)
+                    node->functions.gui(node_instance->arg,
+                                        (Draw){
+                                            .dropdown = component_dropdown,
+                                        });
             }
 
             // Right column for output ports
