@@ -16,24 +16,24 @@ BUILD_DIR = build
 SRC_DIR = src
 SRC_DIR_NODES = nodes
 
-standalone: nodes $(BUILD_DIR)/standalone
-for_installation: nodes $(BUILD_DIR)/for_installation
-standalone_asan: nodes $(BUILD_DIR)/standalone_asan
-standalone_debug: nodes $(BUILD_DIR)/standalone_debug
+standalone: $(BUILD_DIR) nodes $(BUILD_DIR)/standalone
+for_installation: $(BUILD_DIR) nodes $(BUILD_DIR)/for_installation
+standalone_asan: $(BUILD_DIR) nodes $(BUILD_DIR)/standalone_asan
+standalone_debug: $(BUILD_DIR) nodes $(BUILD_DIR)/standalone_debug
 
 ARGS=
 
-run: $(BUILD_DIR)/standalone_debug
+run: standalone_debug
 	@echo "WARNING: no address sanitation enabled, consider running with 'make run_asan' when developing."
 	$(BUILD_DIR)/standalone_debug $(ARGS)
 
-run_asan: $(BUILD_DIR)/standalone_asan
+run_asan: standalone_asan
 	$(BUILD_DIR)/standalone_asan $(ARGS)
 
 STANDALONE_SRC = $(SRC) $(wildcard $(SRC_DIR)/standalone/*.c) $(wildcard $(SRC_DIR)/gui/*.c)
 
 $(BUILD_DIR)/for_installation: $(STANDALONE_SRC) 
-	$(CC) $(CFLAGS_STANDALONE) -DRESOURCE_PATH='"/usr/share/waveforest/"' -DNODE_DIR='"/usr/share/waveforest/nodes/"' -DPATCH_DIR='"$(HOME)/.waveforest/"' $^ -o $@
+	$(CC) $(CFLAGS_STANDALONE) -DRESOURCE_PATH='"/usr/share/waveforest/"' -DNODE_DIR='"/usr/share/waveforest/nodes/"' -DPATCH_DIR='"~/.waveforest/"' $^ -o $@
 
 $(BUILD_DIR)/standalone: $(STANDALONE_SRC) 
 	$(CC) $(CFLAGS_STANDALONE) -DRESOURCE_PATH='"res/"' -DNODE_DIR='"build/nodes"' -DPATCH_DIR='"$(HOME)/.waveforest/"' $^ -o $@
@@ -65,9 +65,7 @@ lv2_install: lv2
 install: for_installation
 	cp res /usr/share/waveforest -r
 	cp $(BUILD_DIR)/nodes /usr/share/waveforest/nodes -r
-	mkdir -p $(HOME)/.waveforest
-
-	cp $(BUILD_DIR)/standalone /usr/bin/$(NAME)
+	cp $(BUILD_DIR)/for_installation /usr/bin/$(NAME)
 
 # Node build
 
@@ -87,7 +85,7 @@ $(BUILD_DIR)/nodes/%.so: $(BUILD_DIR)/nodes/%.o
 
 .PHONY: clean
 clean:
-	rm $(BUILD_DIR)/lv2/*.so -f
+	rm -rf $(BUILD_DIR)
 
 
 $(BUILD_DIR):

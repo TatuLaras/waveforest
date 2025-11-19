@@ -8,6 +8,9 @@
 #include <linux/limits.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #define MAGIC 0x3694
 #define VERSION 0
@@ -325,6 +328,13 @@ int patch_read(const char *file) {
 }
 
 void patch_set_directory(const char *directory) {
+
+    // Make directory if it doesn't exist
+    struct stat st = {0};
+    if (stat(directory, &st) == -1) {
+        INFO("make %s", directory);
+        mkdir(directory, 0700);
+    }
 
     strncpy(patch_directory, directory, PATH_MAX - 2);
     if (patch_directory[strlen(patch_directory) - 1] != '/')

@@ -29,15 +29,15 @@ void *node_instantiate(NodeInstanceHandle handle,
 
     out = (*register_output)(handle, "output");
 
-    in_frequency = (*register_input)(
+    in_frequency = register_input(
         handle,
         (InputPort){.name = "frequency",
                     .manual = {.default_value = 1, .min = 0, .max = 20}});
-    in_phase = (*register_input)(
+    in_phase = register_input(
         handle,
         (InputPort){.name = "phase",
                     .manual = {.default_value = 0, .min = 0, .max = 8}});
-    in_volume = (*register_input)(
+    in_volume = register_input(
         handle,
         (InputPort){.name = "volume",
                     .manual = {.default_value = 1, .min = 0, .max = 4}});
