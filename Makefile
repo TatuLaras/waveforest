@@ -60,7 +60,7 @@ $(BUILD_DIR)/lv2/%.so: $(SRC_DIR)/lv2/%.c $(LV2_SRC)
 lv2_install: lv2
 	install -d /usr/lib/lv2/waveforest.lv2
 	install -m 644 $(BUILD_DIR)/lv2/*.so  /usr/lib/lv2/waveforest.lv2/
-	install -m 644 $(BUILD_DIR)/lv2/*.ttl /usr/lib/lv2/waveforest.lv2/
+	install -m 644 $(SRC_DIR)/lv2/*.ttl /usr/lib/lv2/waveforest.lv2/
 
 install: for_installation
 	cp res /usr/share/waveforest -r

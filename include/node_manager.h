@@ -1,8 +1,6 @@
 #ifndef _NODE_MANAGER
 #define _NODE_MANAGER
 
-//  TODO: On connecting node instances, ensure there is no loops in the network.
-
 #include "common_node_types.h"
 #include "vec.h"
 #include <stdint.h>
@@ -61,8 +59,6 @@ typedef struct {
     // processed multiple times
     uint8_t staleness;
     void *arg;
-    // Used for UI, not sure if this is the right place but I will evaluate this
-    // later.
     uint8_t height;
     uint8_t is_deleted;
     NodePositioning positioning;

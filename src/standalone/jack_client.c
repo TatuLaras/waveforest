@@ -22,18 +22,9 @@ static int process(jack_nframes_t nframes, void *arg) {
     // jack_midi_event_get(&in_event, port_buf, 0);
 
     for (uint32_t i = 0; i < event_count; i++) {
+
         jack_midi_event_get(&in_event, port_buf, i);
-
-        //  NOTE: https://midi.org/summary-of-midi-1-0-messages
-
-        // We don't care about channels currently
-
-        if ((in_event.buffer[0] & 0xf0) == 0x90)
-            midi_set_note_on(in_event.buffer[1], in_event.buffer[2],
-                             in_event.time);
-        else if ((in_event.buffer[0] & 0xf0) == 0x80)
-            midi_set_note_off(in_event.buffer[1], in_event.buffer[2],
-                              in_event.time);
+        midi_event_send(in_event.buffer, in_event.time);
     }
 
     node_consume_network(nframes, out);

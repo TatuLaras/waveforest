@@ -1,7 +1,6 @@
 #include "common_header.h"
 
 #include <math.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -21,6 +20,7 @@ static OutputPortHandle out;
 static InputPortHandle in_frequency;
 static InputPortHandle in_phase;
 static InputPortHandle in_volume;
+static InputPortHandle in_feedback;
 
 void *node_instantiate(NodeInstanceHandle handle,
                        uint8_t *out_height_in_grid_units,
@@ -41,6 +41,10 @@ void *node_instantiate(NodeInstanceHandle handle,
         handle,
         (InputPort){.name = "volume",
                     .manual = {.default_value = 1, .min = 0, .max = 4}});
+    in_feedback = register_input(
+        handle,
+        (InputPort){.name = "feedback",
+                    .manual = {.default_value = 0, .min = 0, .max = 100}});
 
     void *arg = malloc(sizeof(State));
 
@@ -97,11 +101,24 @@ void node_process(void *arg, Info *info, InputBuffer *input_bufs,
         double time =
             (double)(info->coarse_time + i) / (double)info->sample_rate;
 
+        float feedback_amount = INPUT_GET_VALUE(input_bufs[in_feedback], i);
+
+        double first_pass = 0;
+        if (feedback_amount > 0)
+            first_pass =
+                wave_function(
+                    state->selected_mode,
+                    time * info->note->frequency *
+                            INPUT_GET_VALUE(input_bufs[in_frequency], i) +
+                        INPUT_GET_VALUE(input_bufs[in_phase], i)) *
+                INPUT_GET_VALUE(input_bufs[in_volume], i);
+
         output_bufs[out][i] =
             wave_function(state->selected_mode,
                           time * info->note->frequency *
                                   INPUT_GET_VALUE(input_bufs[in_frequency], i) +
-                              INPUT_GET_VALUE(input_bufs[in_phase], i)) *
+                              INPUT_GET_VALUE(input_bufs[in_phase], i) +
+                              first_pass * feedback_amount) *
             INPUT_GET_VALUE(input_bufs[in_volume], i);
     }
 }

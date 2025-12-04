@@ -1,0 +1,60 @@
+@prefix atom:  <http://lv2plug.in/ns/ext/atom#> .
+@prefix wf:  <http://www.laras.cc/plugins/waveforest#> .
+@prefix doap:  <http://usefulinc.com/ns/doap#> .
+@prefix lv2:   <http://lv2plug.in/ns/lv2core#> .
+@prefix patch: <http://lv2plug.in/ns/ext/patch#> .
+@prefix midi: <http://lv2plug.in/ns/ext/midi#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix urid:  <http://lv2plug.in/ns/ext/urid#> .
+@prefix units: <http://lv2plug.in/ns/extensions/units#> .
+@prefix foaf:  <http://xmlns.com/foaf/0.1/> .
+@prefix work:  <http://lv2plug.in/ns/ext/worker#> .
+@prefix state: <http://lv2plug.in/ns/ext/state#> .
+
+wf:me
+	a foaf:Person ;
+	foaf:name "Tatu Laras" ;
+	foaf:mbox <mailto:tatu.laras@gmail.com> ;
+	foaf:homepage <http://www.laras.cc/> .
+
+wf:patch
+	a lv2:Parameter ;
+	rdfs:label "Patch" ;
+	rdfs:range atom:Path .
+
+<http://www.laras.cc/plugins/waveforest>
+	a lv2:Plugin , lv2:InstrumentPlugin;
+	doap:name "WaveForest" ;
+	doap:license <https://opensource.org/license/mit> ;
+    doap:maintainer wf:me ;
+	lv2:requiredFeature urid:map, work:schedule;
+	lv2:optionalFeature lv2:hardRTCapable ;
+	lv2:extensionData work:interface, state:interface ;
+	patch:writable wf:patch ;
+	lv2:port [
+		a atom:AtomPort ,
+			lv2:InputPort ;
+		atom:bufferType atom:Sequence ;
+		atom:supports patch:Message ;
+		lv2:designation lv2:control ;
+		lv2:index 0 ;
+		lv2:symbol "control" ;
+		lv2:name "Control"
+	] , [
+		a atom:AtomPort ,
+			lv2:InputPort ;
+		atom:bufferType atom:Sequence ;
+		atom:supports midi:MidiEvent ;
+		lv2:designation lv2:control ;
+		lv2:index 1 ;
+		lv2:symbol "control" ;
+		lv2:name "Midi"
+	] , [
+		a lv2:AudioPort ,
+			lv2:OutputPort ;
+		lv2:index 2 ;
+		lv2:symbol "out" ;
+		lv2:name "Out"
+	] ;
+	.

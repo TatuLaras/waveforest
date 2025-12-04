@@ -1,4 +1,5 @@
 #include "midi.h"
+#include "common.h"
 #include "node_manager.h"
 
 #include <math.h>
@@ -21,7 +22,7 @@ void midi_reset(void) {
     memset(note_data, 0, sizeof(note_data));
 }
 
-void midi_set_note_on(uint8_t note, uint8_t velocity, uint32_t time) {
+static void set_note_on(uint8_t note, uint8_t velocity, uint32_t time) {
 
     if (note >= MIDI_NOTES)
         return;
@@ -33,7 +34,7 @@ void midi_set_note_on(uint8_t note, uint8_t velocity, uint32_t time) {
     note_data[note].enable_time = time + node_get_coarse_time();
 }
 
-void midi_set_note_off(uint8_t note, uint8_t velocity, uint32_t time) {
+static void set_note_off(uint8_t note, uint8_t velocity, uint32_t time) {
 
     if (note >= MIDI_NOTES)
         return;
@@ -43,6 +44,28 @@ void midi_set_note_off(uint8_t note, uint8_t velocity, uint32_t time) {
     note_data[note].is_on = 0;
     note_data[note].off_velocity = velocity;
     note_data[note].release_time = time + node_get_coarse_time();
+}
+
+void midi_event_send(uint8_t *msg, uint32_t time) {
+
+    //  NOTE: Channel is ignored
+
+    // Note on
+    if ((msg[0] & 0xf0) == 0x90) {
+        set_note_on(msg[1], msg[2], time);
+        return;
+    }
+
+    // Note off
+    if ((msg[0] & 0xf0) == 0x80) {
+        set_note_off(msg[1], msg[2], time);
+        return;
+    }
+
+    // Control Change
+    if ((msg[0] & 0xf0) == 0xb0) {
+        return;
+    }
 }
 
 NoteInfo *midi_get_note_info(uint8_t note) {

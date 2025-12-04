@@ -157,10 +157,10 @@ static void run(LV2_Handle instance, uint32_t n_samples) {
         const uint8_t *const msg = (const uint8_t *)(ev + 1);
         switch (lv2_midi_message_type(msg)) {
         case LV2_MIDI_MSG_NOTE_ON:
-            midi_set_note_on(msg[1], 1);
+            midi_set_note_on(msg[1], msg[2], ev->time.frames);
             break;
         case LV2_MIDI_MSG_NOTE_OFF:
-            midi_set_note_on(msg[1], 0);
+            midi_set_note_off(msg[1], msg[2], ev->time.frames);
             break;
         case LV2_MIDI_MSG_CONTROLLER:
             if (msg[1] == LV2_MIDI_CTL_ALL_NOTES_OFF)
@@ -176,7 +176,7 @@ static void run(LV2_Handle instance, uint32_t n_samples) {
     node_consume_network(n_samples, self->out);
 }
 
-//  FIXME: Will crash if patch file is swapped when any MIDI note is held down
+//  NOTE: Will crash if patch file is swapped when any MIDI note is held down
 //  due to a new node network being loaded mid-processing. Maybe this is
 //  something we want to do in run() altough it will produce a harsh sound due
 //  to it not being RT-safe.

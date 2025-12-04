@@ -216,6 +216,13 @@ static inline void accept_patch_name_and_save(char *name) {
     patch_save(patch_name);
 }
 
+static inline void new_patch(void) {
+
+    init_view();
+    node_reset();
+    patch_name[0] = 0;
+}
+
 static inline void handle_shortcuts(void) {
 
     switch (shortcuts_get_action(GetKeyPressed(), IsKeyDown(KEY_LEFT_SHIFT),
@@ -245,6 +252,10 @@ static inline void handle_shortcuts(void) {
     case ACTION_PICK_NODE:
         fuzzy_picker_start_picking("add node: ", node_files_enumerate(),
                                    accept_node_picking_result);
+        break;
+
+    case ACTION_NEW_PATCH:
+        new_patch();
         break;
 
     case ACTION_NONE:

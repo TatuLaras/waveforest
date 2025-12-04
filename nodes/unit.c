@@ -12,7 +12,7 @@ void *node_instantiate(NodeInstanceHandle handle, uint8_t *out_height,
     in = register_input(
         handle,
         (InputPort){.name = "input",
-                    .manual = {.default_value = 0, .min = 0, .max = 1}});
+                    .manual = {.default_value = 0, .min = 0, .max = 100}});
 
     *out_height = 1;
     return 0;

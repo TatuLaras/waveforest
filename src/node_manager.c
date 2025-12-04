@@ -9,9 +9,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#define DB_CO(g) ((g) > -90.0f ? powf(10.0f, (g) * 0.05f) : 0.0f)
-#define HARD_CLIP_LIMIT DB_CO(17)
-#define MASTER_GAIN DB_CO(-16)
+#define DB_TO_COEFF(g) ((g) > -90.0f ? powf(10.0f, (g) * 0.05f) : 0.0f)
+#define HARD_CLIP_LIMIT DB_TO_COEFF(17)
+#define MASTER_GAIN DB_TO_COEFF(-16)
 
 VEC_IMPLEMENT(NodeInstance, NodeInstanceVec, nodeinstancevec)
 VEC_IMPLEMENT(Node, NodeVec, nodevec)
@@ -120,6 +120,7 @@ void node_reset(void) {
 
     node_instances.data_used = 1;
     nodes.data_used = 0;
+    memset(&network_output_port, 0, sizeof(network_output_port));
 }
 
 NodeHandle node_new(Node node) {
@@ -373,8 +374,10 @@ static inline void prepare_buffer(Buffer *buffer, uint64_t target_capacity) {
 static int process_node(uint32_t frame_count, NodeInstanceHandle instance) {
 
     NodeInstance *node_instance = node_instances.data + instance;
-    if (node_instance->staleness == staleness_counter)
+    if (node_instance->staleness == staleness_counter) {
         return 0;
+    }
+    node_instance->staleness = staleness_counter;
 
     Node *node = nodes.data + node_instance->node;
 
@@ -420,7 +423,6 @@ static int process_node(uint32_t frame_count, NodeInstanceHandle instance) {
 
     (*node->functions.process)(node_instance->arg, &info, input_buffers.data,
                                output_buffers.data, frame_count);
-    node_instance->staleness = staleness_counter;
 
     return 0;
 }

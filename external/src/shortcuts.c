@@ -74,6 +74,12 @@ static Shortcut shortcuts[] = {
         .keypresses = {KEY_SPACE},
         .is_global = 1,
     },
+    {
+        .action = ACTION_NEW_PATCH,
+        .keypresses = {KEY_N},
+        .is_global = 1,
+        .require_ctrl_down = 1,
+    },
 };
 
 // Resets the list of keypresses.
