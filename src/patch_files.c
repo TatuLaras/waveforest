@@ -49,6 +49,7 @@ typedef struct {
     uint32_t input_ports_count;
     uint32_t input_port_size;
     NodePositioning positioning;
+    uint8_t custom_data[MAX_CUSTOM_DATA];
 } SerializedNodeInstance;
 
 static char patch_directory[PATH_MAX] = {0};
@@ -115,6 +116,12 @@ int patch_write(const char *file) {
             .input_port_size = sizeof(SerializedInputPort),
             .positioning = instance->positioning,
         };
+
+        // Serialize custom data
+        if (node->functions.custom_data)
+            (*node->functions.custom_data)(instance->arg,
+                                           serialized_instance.custom_data);
+
         strncpy(serialized_instance.name, node->name, MAX_NAME - 1);
         genbuf_append(&buf, &serialized_instance, sizeof serialized_instance);
 
@@ -179,7 +186,8 @@ int patch_write(const char *file) {
     return result;
 }
 
-static inline NodeInstanceHandle instantiate(char *node_name) {
+static inline NodeInstanceHandle instantiate(char *node_name,
+                                             uint8_t *custom_data) {
     NodeHandle node_handle = 0;
     node_get_by_name(node_name, &node_handle);
 
@@ -192,7 +200,7 @@ static inline NodeInstanceHandle instantiate(char *node_name) {
         node_handle = node_new(node);
     }
 
-    return node_instantiate(node_handle);
+    return node_instantiate(node_handle, custom_data);
 }
 
 static inline int deserialize_patch(uint8_t *buf, size_t buf_size) {
@@ -224,7 +232,8 @@ static inline int deserialize_patch(uint8_t *buf, size_t buf_size) {
         cursor += header.node_instance_size +
                   instance.input_port_size * instance.input_ports_count;
 
-        NodeInstanceHandle instance_handle = instantiate(instance.name);
+        NodeInstanceHandle instance_handle =
+            instantiate(instance.name, instance.custom_data);
         if (!instance_handle)
             continue;
 

@@ -11,7 +11,7 @@
 typedef void *(*NodeInstantiateFunction)(
     NodeInstanceHandle handle, uint8_t *out_height_in_grid_units,
     RegisterInputPortFunction register_input,
-    RegisterOutputPortFunction register_output);
+    RegisterOutputPortFunction register_output, uint8_t *custom_data);
 typedef void (*NodeProcessFunction)(void *arg, Info *info,
                                     InputBuffer *input_buffers,
                                     float **output_buffers,
@@ -20,15 +20,17 @@ typedef void (*NodeProcessFunction)(void *arg, Info *info,
 // Optionals
 typedef void (*NodeFreeFunction)(void *arg);
 typedef void (*NodeGuiFunction)(void *arg, Draw draw);
+typedef void (*NodeCustomDataFunction)(void *arg, uint8_t *out_custom_data);
 
 typedef struct {
     char name[MAX_NAME];
     void *dl_handle;
     struct {
         NodeInstantiateFunction instantiate;
+        NodeProcessFunction process;
         NodeFreeFunction free;
         NodeGuiFunction gui;
-        NodeProcessFunction process;
+        NodeCustomDataFunction custom_data;
     } functions;
 } Node;
 VEC_DECLARE(Node, NodeVec, nodevec)
@@ -75,7 +77,8 @@ NodeHandle node_new(Node node);
 // After calling node_new(), call this to instantiate the loaded node into an
 // actual node instance that you can connect to other node instances or the
 // output to produce sound.
-NodeInstanceHandle node_instantiate(NodeHandle node_handle);
+NodeInstanceHandle node_instantiate(NodeHandle node_handle,
+                                    uint8_t *custom_data);
 // Destroys / deletes node instance and all its connections.
 void node_instance_destroy(NodeInstanceHandle instance_handle);
 

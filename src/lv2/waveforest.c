@@ -154,22 +154,8 @@ static void run(LV2_Handle instance, uint32_t n_samples) {
         if (ev->body.type != self->uris.midi_MidiEvent)
             continue;
 
-        const uint8_t *const msg = (const uint8_t *)(ev + 1);
-        switch (lv2_midi_message_type(msg)) {
-        case LV2_MIDI_MSG_NOTE_ON:
-            midi_set_note_on(msg[1], msg[2], ev->time.frames);
-            break;
-        case LV2_MIDI_MSG_NOTE_OFF:
-            midi_set_note_off(msg[1], msg[2], ev->time.frames);
-            break;
-        case LV2_MIDI_MSG_CONTROLLER:
-            if (msg[1] == LV2_MIDI_CTL_ALL_NOTES_OFF)
-                midi_reset();
-
-            break;
-        default:
-            break;
-        }
+        uint8_t *msg = (uint8_t *)(ev + 1);
+        midi_event_send(msg, ev->time.frames);
     }
 
     // Produce audio output

@@ -23,6 +23,7 @@ enum {
     FONT_ID_BASE,
 };
 static Font fonts[1] = {0};
+static uint8_t empty_custom_data[MAX_CUSTOM_DATA] = {0};
 
 static struct {
     Vector2 screen_pos;
@@ -170,7 +171,7 @@ static inline void handle_node_moving(void) {
 
 static inline void instantiate_node_at_mouse(NodeHandle handle) {
 
-    NodeInstanceHandle instance = node_instantiate(handle);
+    NodeInstanceHandle instance = node_instantiate(handle, empty_custom_data);
     NodeInstance *node_instance = node_instance_get(instance);
     if (!node_instance)
         return;

@@ -153,7 +153,8 @@ static uint8_t calculate_node_height(uint64_t port_count) {
     return height;
 }
 
-NodeInstanceHandle node_instantiate(NodeHandle node_handle) {
+NodeInstanceHandle node_instantiate(NodeHandle node_handle,
+                                    uint8_t *custom_data) {
 
     Node *node = nodevec_get(&nodes, node_handle);
     if (!node) {
@@ -176,7 +177,7 @@ NodeInstanceHandle node_instantiate(NodeHandle node_handle) {
 
     appended_instance->arg = (*node->functions.instantiate)(
         instance_handle, &appended_instance->height, &register_input,
-        &register_output);
+        &register_output, custom_data);
 
     pthread_spin_unlock(&lock);
     return instance_handle;

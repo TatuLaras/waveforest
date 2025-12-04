@@ -6,13 +6,16 @@ static OutputPortHandle out;
 
 void *node_instantiate(NodeInstanceHandle handle, uint8_t *out_height,
                        RegisterInputPortFunction register_input,
-                       RegisterOutputPortFunction register_output) {
+                       RegisterOutputPortFunction register_output,
+                       uint8_t *custom_data) {
 
     out = register_output(handle, "output");
 
     *out_height = 1;
+
     return 0;
     (void)register_input;
+    (void)custom_data;
 }
 
 void node_process(void *arg, Info *info, InputBuffer *input_bufs,

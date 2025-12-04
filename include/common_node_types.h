@@ -9,6 +9,7 @@
 #include <stdint.h>
 
 #define MAX_NAME 128
+#define MAX_CUSTOM_DATA 1024
 
 // Nodes will for a MIDI key be processed for this amount of time after the MIDI
 // key release. This is to allow for stuff like a release envelope fade out.

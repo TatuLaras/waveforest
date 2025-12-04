@@ -8,9 +8,10 @@
 #include <string.h>
 
 #define FUNCTION_NAME_INSTANTIATE "node_instantiate"
+#define FUNCTION_NAME_PROCESS "node_process"
 #define FUNCTION_NAME_FREE "node_free"
 #define FUNCTION_NAME_GUI "node_gui"
-#define FUNCTION_NAME_PROCESS "node_process"
+#define FUNCTION_NAME_CUSTOM_DATA "node_custom_data"
 
 static char node_directory[PATH_MAX + 2] = {0};
 
@@ -66,6 +67,8 @@ int node_files_load(char *node_name, Node *out_node) {
     node.functions.free =
         (NodeFreeFunction)get_symbol(handle, FUNCTION_NAME_FREE);
     node.functions.gui = (NodeGuiFunction)get_symbol(handle, FUNCTION_NAME_GUI);
+    node.functions.custom_data =
+        (NodeCustomDataFunction)get_symbol(handle, FUNCTION_NAME_CUSTOM_DATA);
 
     memcpy(out_node, &node, sizeof(Node));
     return 0;

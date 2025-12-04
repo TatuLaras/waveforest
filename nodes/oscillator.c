@@ -22,10 +22,13 @@ static InputPortHandle in_phase;
 static InputPortHandle in_volume;
 static InputPortHandle in_feedback;
 
+static uint32_t custom_data_waveform = 0;
+
 void *node_instantiate(NodeInstanceHandle handle,
                        uint8_t *out_height_in_grid_units,
                        RegisterInputPortFunction register_input,
-                       RegisterOutputPortFunction register_output) {
+                       RegisterOutputPortFunction register_output,
+                       uint8_t *custom_data) {
 
     out = (*register_output)(handle, "output");
 
@@ -53,6 +56,7 @@ void *node_instantiate(NodeInstanceHandle handle,
     stringvec_append(&state.modes, "triangle", strlen("triangle"));
     stringvec_append(&state.modes, "saw", strlen("saw"));
     stringvec_append(&state.modes, "square", strlen("square"));
+    state.selected_mode = custom_data[custom_data_waveform];
 
     memcpy(arg, &state, sizeof(State));
 
@@ -121,4 +125,10 @@ void node_process(void *arg, Info *info, InputBuffer *input_bufs,
                               first_pass * feedback_amount) *
             INPUT_GET_VALUE(input_bufs[in_volume], i);
     }
+}
+
+void node_custom_data(void *arg, uint8_t *out_custom_data) {
+
+    State *state = (State *)arg;
+    out_custom_data[custom_data_waveform] = state->selected_mode;
 }

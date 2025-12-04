@@ -35,7 +35,8 @@ static inline float calculate_slope(float from, float to, float time,
 
 void *node_instantiate(NodeInstanceHandle handle, uint8_t *out_height,
                        RegisterInputPortFunction register_input,
-                       RegisterOutputPortFunction register_output) {
+                       RegisterOutputPortFunction register_output,
+                       uint8_t *custom_data) {
 
     out = register_output(handle, "output");
 
@@ -59,6 +60,8 @@ void *node_instantiate(NodeInstanceHandle handle, uint8_t *out_height,
 
     *out_height = 2;
     return calloc(1, sizeof(State));
+
+    (void)custom_data;
 }
 
 void node_free(void *arg) {
