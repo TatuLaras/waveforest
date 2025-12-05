@@ -115,6 +115,7 @@ static inline void draw_background_grid(void) {
         return;
 
     char *help_message = "\
+h to show this message\n\
 Mouse3 to pan around\n\
 Scroll to zoom\n\
 Space to add node\n\
@@ -122,7 +123,6 @@ Delete to delete node\n\
 Ctrl+s to save patch\n\
 Ctrl+o to open patch\n\
 Ctrl+n for new patch\n\
-h to show/hide this message\n\
 ";
     DrawTextEx(fonts[FONT_ID_BASE], help_message, (Vector2){14, 14},
                FONT_SIZE_FIXED, 0, (Color)COLOR_BG_2);

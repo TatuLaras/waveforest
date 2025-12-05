@@ -64,7 +64,8 @@ lv2_install: lv2
 
 install: for_installation
 	cp res /usr/share/waveforest -r
-	cp $(BUILD_DIR)/nodes /usr/share/waveforest/nodes -r
+	rm -f /usr/share/waveforest/nodes/*
+	cp $(BUILD_DIR)/nodes/* /usr/share/waveforest/nodes -r
 	cp $(BUILD_DIR)/for_installation /usr/bin/$(NAME)
 
 # Node build

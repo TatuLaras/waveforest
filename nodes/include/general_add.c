@@ -1,6 +1,13 @@
 #include "common_header.h"
 #include <stdio.h>
 
+#ifndef INPUT_COUNT
+#define INPUT_COUNT 2
+#endif
+#ifndef NODE_HEIGHT
+#define NODE_HEIGHT 1
+#endif
+
 static OutputPortHandle out;
 static InputPortHandle in[INPUT_COUNT] = {0};
 
@@ -12,7 +19,8 @@ void *node_instantiate(NodeInstanceHandle handle, uint8_t *out_height,
     out = register_output(handle, "output");
 
     for (uint16_t i = 0; i < INPUT_COUNT; i++) {
-        InputPort port = {.manual = {.default_value = 0, .min = 0, .max = 10}};
+        InputPort port = {
+            .manual = {.default_value = 0, .min = -10, .max = 10}};
         snprintf(port.name, sizeof(port.name) - 1, "input %u", i);
         in[i] = register_input(handle, port);
     }
