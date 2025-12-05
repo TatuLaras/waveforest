@@ -15,8 +15,6 @@ What better way is there to represent anything connecting to anything that a nod
 Basically I had arrived at modular synthesis through a very convoluted route :).
 What we have here is basically a minimal modular synthesizer with an expandable architecture where you can write the nodes as plugins and even share them around without requiring recompilation of waveforest itself.
 
-[TOC]
-
 ## Dependencies
 - Linux
 - raylib
