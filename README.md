@@ -113,6 +113,11 @@ You usually want to connect the output of this to an `oscillator`s `volume` inpu
 The inputs allow you to define an ADSR envelope for the sound.
 [More on ADSR envelopes.](https://en.wikipedia.org/wiki/Envelope_(music))
 
+#### lfo 
+An oscillator but slower.
+Useful for vibrato etc.
+The frequency input on this one this the actual Hz frequency of the oscillator.
+
 #### velocity
 Outputs the velocity of the keypress as a $0..1$ value.
 
