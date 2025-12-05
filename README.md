@@ -158,3 +158,6 @@ To install them in a location where the installed waveforest instance looks for 
 ## Limitations
 As waveforest was only meant as a "do anything" FM synth, that's what it currently does best.
 Currently there isn't many modules to support other kinds of synthesis, so for an actual modular synthesizer it's probably better to go with something like VCV Rack or Cardinal.
+
+Also stereo support is maybe something that should be implemented at some point.
+Traditionally the FM synths output things in mono, but if the project expands to support other types of synthesis there will probably be demand for creating stereo effects.
