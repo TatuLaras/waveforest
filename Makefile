@@ -17,7 +17,7 @@ SRC_DIR = src
 SRC_DIR_NODES = nodes
 
 standalone: $(BUILD_DIR) nodes $(BUILD_DIR)/standalone
-for_installation: $(BUILD_DIR) nodes $(BUILD_DIR)/for_installation
+for_installation: $(BUILD_DIR) nodes_install $(BUILD_DIR)/for_installation
 standalone_asan: $(BUILD_DIR) nodes $(BUILD_DIR)/standalone_asan
 standalone_debug: $(BUILD_DIR) nodes $(BUILD_DIR)/standalone_debug
 
@@ -64,9 +64,12 @@ lv2_install: lv2
 
 install: for_installation
 	cp res /usr/share/waveforest -r
+	cp $(BUILD_DIR)/for_installation /usr/bin/$(NAME)
+
+nodes_install: nodes
 	rm -f /usr/share/waveforest/nodes/*
 	cp $(BUILD_DIR)/nodes/* /usr/share/waveforest/nodes -r
-	cp $(BUILD_DIR)/for_installation /usr/bin/$(NAME)
+
 
 # Node build
 
