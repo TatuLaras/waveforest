@@ -1,19 +1,19 @@
 # waveforest - A node-based modular (FM) synthesizer 
 <img width="1906" height="649" alt="image" src="https://github.com/user-attachments/assets/4dd7f15c-9281-40be-80cb-c4296cb5e0a6" />
 
-If you're doing music / audio stuff on Linux, you have access to a plethora of fantastic free and open source plugins and effects to help you.
-However, one department that I felt was a little bit lacking was frequency modulation (FM) synthesizers.
-For the more common type, subtractive synthesis, there are many options available such as SurgeXT.
+If you're doing music / audio stuff on Linux, you have access to a plethora of fantastic free and open source plugins and effects.
+However, one department that I felt was a little bit lacking was frequency modulation (FM) synthesis.
+For the more common type, subtractive synthesis, there are many options available such as the popular SurgeXT synthesizer.
 But on the FM side, I felt that each of the options didn't quite do everything the way I wanted them to.
 Don't get me wrong, synths like Dexed and Octasine do a very good job of emulating the 4 or 6 operator hardware FM synths, but that in itself was the issue for me.
 Since we're doing everything on the computer, why should we be bound by the limited number of operators found on those synths?
 
-So I set out to create my ideal FM synth, one were you could have any number of operators connected in any way you want.
+So I set out to create my ideal FM synth, one where you could have any number of operators connected in any way you want.
 I had many ideas for the user interface, but then it hit me.
-What better way is there to represent anything connecting to anything that a node editor.
+What better way is there to represent anything connecting to anything that a node editor!
 
 Basically I had arrived at modular synthesis through a very convoluted route :).
-What we have here is basically a minimalist version of VCV Rack, with an expandable architecture where you can write the nodes as plugins and even share them around without requiring recompilation of waveforest itself.
+What we have here is basically a minimal modular synthesizer with an expandable architecture where you can write the nodes as plugins and even share them around without requiring recompilation of waveforest itself.
 
 ## Dependencies
 - Linux
@@ -35,13 +35,14 @@ Loops are also possible but do not produce very pleasant sounds.
 Most of the actions are done through keyboard shortcuts, with fuzzy find for adding nodes and loading patches.
 
 ### Expandable architecture
-The nodes are loaded as dynamic libraries and there is an API according to which you can build more nodes in a very straight-forward way.
-The API follows a structure that is basically a simplified and tailored version of what you would find in other audio APIs, like JACK, LV2 or VST.
-Adding new nodes doesn't require recompilation of waveforest itself, as it loads the nodes from a directory where these node plugin binaries reside.
+The nodes are loaded as dynamic libraries and there is an API through which you can build more nodes in a very straight-forward way.
+The API follows a structure that is probably familiar if you have used other audio APIs such as JACK, LV2 or VST.
+Adding new nodes doesn't require recompilation of waveforest itself, as it loads the nodes from a directory where these node plugin binaries reside when they are needed.
 
 Due to this fact waveforest has the potential to not only serve as a flexible FM synthesizer, but incorporate other types of synthesis as well.
 It all depends on what kinds of nodes are implemented for it.
-The currently implemented nodes mostly allow you to just to FM as I haven't (at the time of writing) implemented a filter.
+The currently implemented nodes mostly allow you to just do FM as I haven't (at the time of writing) implemented a filter node.
+That is something I want to do at some point though, as I learn more about digital signal processing.
 
 ### LV2 companion plugin
 There is an LV2 companion plugin available.
@@ -68,7 +69,7 @@ Resources, such as node plugins and fonts will be at `/usr/share/waveforest`.
 
 ## Usage
 
-After bootup, a message in the top left will tell you the keyboard shortcuts needed to use waveforest.
+After bootup, a message in the top left will tell you the most important keyboard shortcuts needed to use waveforest.
 You can use the `h` key to bring it up again at any time.
 
 You can hit the `space` key, after which you can fuzzily find a node that you're looking for. 
@@ -84,6 +85,8 @@ To delete a node, press the `Delete` key while hovering in that area.
 In a node block, the sockets on the left side are input sockets and sockets on the right side are output sockets.
 To connect two nodes drag the line from an input socket to an output socket or vice versa.
 To disconnect a line simply click on the input socket it's connected to.
+
+To save a patch use `ctrl+s`, to open one use `ctrl+o`. Pressing `ctrl+n` will make a new patch.
 
 ### Some important nodes
 #### output
@@ -153,5 +156,5 @@ To install them in a location where the installed waveforest instance looks for 
 ```
 
 ## Limitations
-As waveforest was only meant as a "do anything" FM synth, that's what it does best.
+As waveforest was only meant as a "do anything" FM synth, that's what it currently does best.
 Currently there isn't many modules to support other kinds of synthesis, so for an actual modular synthesizer it's probably better to go with something like VCV Rack or Cardinal.
