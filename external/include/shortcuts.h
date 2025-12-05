@@ -15,6 +15,7 @@ typedef enum {
     ACTION_DELETE_NODE_INSTANCE,
     ACTION_PICK_NODE,
     ACTION_NEW_PATCH,
+    ACTION_TOGGLE_HELP,
 } ShortcutAction;
 
 // Registers the currently pressed key and if an action has taken place it

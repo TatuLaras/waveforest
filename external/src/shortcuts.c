@@ -80,6 +80,11 @@ static Shortcut shortcuts[] = {
         .is_global = 1,
         .require_ctrl_down = 1,
     },
+    {
+        .action = ACTION_TOGGLE_HELP,
+        .keypresses = {KEY_H},
+        .is_global = 1,
+    },
 };
 
 // Resets the list of keypresses.

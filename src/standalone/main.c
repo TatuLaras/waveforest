@@ -40,8 +40,6 @@ int main(int argc, char **argv) {
     strncpy(patch_dir, home_dir, PATH_MAX);
     strncat(patch_dir, "/.waveforest", PATH_MAX - strlen(patch_dir));
 
-    printf("This should show up %s\n", patch_dir);
-
     node_files_set_directory(NODE_DIR);
     patch_set_directory(patch_dir);
 

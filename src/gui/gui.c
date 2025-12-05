@@ -36,6 +36,8 @@ static struct {
     int is_moving;
 } node_moving;
 
+static int show_help_message = 1;
+
 static NodeInstanceHandle hovered_node = 0;
 
 static char patch_name[MAX_NAME + 1] = {0};
@@ -108,6 +110,22 @@ static inline void draw_background_grid(void) {
     for (uint32_t y = 0; y <= screen_height + GRID_UNIT; y += GRID_UNIT)
         DrawLineEx((Vector2){0, y - offset_y},
                    (Vector2){screen_width, y - offset_y}, 1, (Color)COLOR_BG_1);
+
+    if (!show_help_message)
+        return;
+
+    char *help_message = "\
+Mouse3 to pan around\n\
+Scroll to zoom\n\
+Space to add node\n\
+Delete to delete node\n\
+Ctrl+s to save patch\n\
+Ctrl+o to open patch\n\
+Ctrl+n for new patch\n\
+h to show/hide this message\n\
+";
+    DrawTextEx(fonts[FONT_ID_BASE], help_message, (Vector2){14, 14},
+               FONT_SIZE_FIXED, 0, (Color)COLOR_BG_2);
 }
 
 static inline Vector2 get_mouse_world_pos(void) {
@@ -126,10 +144,13 @@ static inline void handle_zoom(void) {
 
     Vector2 mouse_before = get_mouse_world_pos();
 
-    if (mousewheel < 0)
+    if (mousewheel < 0) {
         scale -= 0.1;
-    else if (mousewheel > 0)
+        show_help_message = 0;
+    } else if (mousewheel > 0) {
         scale += 0.1;
+        show_help_message = 0;
+    }
     scale = max(scale, 0.2);
 
     Vector2 mouse_after = get_mouse_world_pos();
@@ -144,6 +165,7 @@ static inline void handle_panning(void) {
             panning.screen_pos,
             Vector2Multiply(GetMouseDelta(),
                             (Vector2){-1 / GRID_UNIT, -1 / GRID_UNIT}));
+        show_help_message = 0;
     }
 }
 
@@ -160,6 +182,7 @@ static inline void handle_node_moving(void) {
     if (!node_moving.is_moving)
         return;
 
+    show_help_message = 0;
     Vector2 mouse_world_pos = get_mouse_world_pos();
     NodeInstance *instance = node_instance_get(node_moving.instance);
     if (!instance)
@@ -226,6 +249,7 @@ static inline void new_patch(void) {
 
 static inline void handle_shortcuts(void) {
 
+    int was_none = 0;
     switch (shortcuts_get_action(GetKeyPressed(), IsKeyDown(KEY_LEFT_SHIFT),
                                  IsKeyDown(KEY_LEFT_CONTROL),
                                  IsKeyDown(KEY_LEFT_ALT))) {
@@ -259,9 +283,18 @@ static inline void handle_shortcuts(void) {
         new_patch();
         break;
 
+    case ACTION_TOGGLE_HELP:
+        was_none = 1;
+        show_help_message = !show_help_message;
+        break;
+
     case ACTION_NONE:
+        was_none = 1;
         break;
     }
+
+    if (!was_none)
+        show_help_message = 0;
 }
 
 static inline void handle_inputs(void) {
